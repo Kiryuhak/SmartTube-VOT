@@ -51,7 +51,7 @@ android {
     buildToolsVersion project.properties.buildToolsVersion
     testOptions.unitTests.includeAndroidResources = true
     ndkVersion "21.0.6113669" // reduce size of the *.so files (stripping debug symbols)
-    
+
     defaultConfig {
         // values linked with applicationId: searchable.searchSuggestAuthority, searchable.searchSuggestIntentData, VideoContract.CONTENT_AUTHORITY
         applicationId "app.smarttube"
@@ -98,7 +98,7 @@ android {
             }
         }
     }
-    
+
     buildTypes {
         release {
             // Enable minification
@@ -106,18 +106,12 @@ android {
             // minifyEnabled true
 
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-
-            if (keystorePropertiesFile.exists()) {
-                signingConfig signingConfigs.release
-            }
         }
-        // Use same key for release and debug for testing
+
         debug {
-            if (keystorePropertiesFile.exists()) {
-                signingConfig signingConfigs.release
-            }
         }
     }
+
 
     // naming example: SmartYouTubeTV_Xwalk_v6.8.12_r.apk
     // https://stackoverflow.com/questions/18332474/how-to-set-versionname-in-apk-filename-using-gradle
@@ -171,6 +165,9 @@ android {
             applicationId "io.github.kiryuhak.smarttubevot.stable"
             targetSdkVersion project.properties.compileSdkVersion
             matchingFallbacks = ['ststable']
+			if (keystorePropertiesFile.exists()) {
+				signingConfig signingConfigs.release
+			}
         }
         stfdroid {
             applicationId "app.smarttube.fdroid"
