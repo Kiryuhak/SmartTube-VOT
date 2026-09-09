@@ -36,6 +36,9 @@ android {
 
     productFlavors {
         stbeta {}
+        stvot {
+            matchingFallbacks = ['ststable']
+        }
         ststable {}
         stfdroid {}
     }
