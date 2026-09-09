@@ -625,4 +625,9 @@ public class EmbedPlayerView extends PlayerView implements PlaybackView {
     private PlaybackPresenter getPlaybackPresenter() {
         return PlaybackPresenter.instance(getContext());
     }
+	
+	@Override
+	public void updateVoiceTranslatePendingEta(int remainingTimeSec) {
+    // VOT ETA is not displayed in the embedded player.
+	}
 }

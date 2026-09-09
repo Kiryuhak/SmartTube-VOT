@@ -52,6 +52,12 @@ public class TranslationAudioPlayer implements Player.EventListener {
             mPlayer.seekTo(startPositionMs);
         }
     }
+	
+	public void setVolume(float volume) {
+    if (mPlayer != null) {
+        mPlayer.setVolume(volume);
+    }
+}
 
     public void setOnReadyListener(@Nullable OnReadyListener listener) {
         mOnReadyListener = listener;

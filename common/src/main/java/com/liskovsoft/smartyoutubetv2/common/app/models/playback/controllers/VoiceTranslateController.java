@@ -177,8 +177,8 @@ public class VoiceTranslateController extends BasePlayerController {
 
     @Override
     public void onButtonLongClicked(int buttonId, int buttonState) {
-        if (buttonId == ACTION_VOICE_TRANSLATE) {
-            AppDialogUtil.showVotMixDialog(getContext(), () -> tryApplyAutoTranslate(false));
+         if (buttonId == ACTION_VOICE_TRANSLATE) {
+            AppDialogUtil.showVotMixDialog(getContext(), this::applyCurrentMix);
         }
     }
 
@@ -485,6 +485,16 @@ public class VoiceTranslateController extends BasePlayerController {
             mTranslationPlayer.seekTo(mainPos);
         }
     }
+
+	private void applyCurrentMix() {
+		if (getPlayer() != null && mState == STATE_ACTIVE) {
+			getPlayer().setVolume(votData().getOriginalVolumeMultiplier());
+		}
+		
+		if (mTranslationPlayer != null) {
+			mTranslationPlayer.setVolume(votData().getTranslationVolumeMultiplier());
+    }
+}
 
     private void duckMainAudio() {
         if (getPlayer() == null) {
