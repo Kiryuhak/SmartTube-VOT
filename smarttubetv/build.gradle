@@ -167,6 +167,11 @@ android {
             applicationId "org.smarttube.stable"
             targetSdkVersion project.properties.compileSdkVersion
         }
+        stvot {
+            applicationId "io.github.kiryuhak.smarttubevot.stable"
+            targetSdkVersion project.properties.compileSdkVersion
+            matchingFallbacks = ['ststable']
+        }
         stfdroid {
             applicationId "app.smarttube.fdroid"
             minSdkVersion 21
