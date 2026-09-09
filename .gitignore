@@ -71,3 +71,5 @@ tmp/
 fabric.properties
 *BAK.java
 hs_err_pid*.log
+/logs/
+/vot-log.txt
