@@ -288,7 +288,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           python3 -c "
-          import sys, re, json
+          import sys, re, json, os
 
           version = '${VERSION_NAME}'
           with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
@@ -303,6 +303,27 @@ jobs:
           section = match.group(1).strip()
           with open('release_notes.md', 'w', encoding='utf-8') as f:
               f.write(section)
+
+          release_title = f'SmartTube VOT v{version}'
+          try:
+              header_line = re.search(rf'## \[{re.escape(version)}\]([^\n]*)', content)
+              raw_suffix = header_line.group(1).strip() if header_line else ''
+              codename_match = re.search(r'^[—\-–]\s*(.+)$', raw_suffix)
+              codename = codename_match.group(1).strip() if codename_match else ''
+              is_date = bool(re.match(r'^\d{4}-\d{2}-\d{2}$', codename))
+              base_ver = version.split('-')[0]
+              if codename and not is_date:
+                  release_title = f'SmartTube VOT {base_ver} — {codename}'
+          except Exception as e:
+              print(f'::warning::Не удалось извлечь кодовое имя релиза ({e}), используется fallback', file=sys.stderr)
+              release_title = f'SmartTube VOT v{version}'
+
+          print(f'Сформирован заголовок релиза: {release_title}')
+
+          env_file = os.getenv('GITHUB_ENV')
+          if env_file:
+              with open(env_file, 'a', encoding='utf-8') as ef:
+                  ef.write(f'RELEASE_TITLE={release_title}\n')
 
           ru_items = [
               line.strip().lstrip('-*').strip()
@@ -351,7 +372,7 @@ jobs:
         run: |
           echo "Публикация GitHub Release для тега $TAG..."
           gh release create "$TAG" \
-            --title "SmartTube VOT v$VERSION_NAME" \
+            --title "${RELEASE_TITLE:-SmartTube VOT v$VERSION_NAME}" \
             --notes-file release_notes.md \
             smarttube_vot.apk \
             smarttubetv/build/outputs/apk/stvot/release/SmartTube_vot_${VERSION_NAME}_*.apk \
