@@ -50,6 +50,8 @@ public class AboutSettingsPresenter extends BasePresenter<Void> {
 
         appendUpdateChangelogButton(settingsPresenter);
 
+        appendAboutDescription(settingsPresenter);
+
         appendUpdateSource(settingsPresenter);
 
         appendInstallBridge(settingsPresenter);
@@ -61,6 +63,25 @@ public class AboutSettingsPresenter extends BasePresenter<Void> {
         }
 
         settingsPresenter.showDialog(mainTitle);
+    }
+
+    private void appendAboutDescription(AppDialogPresenter settingsPresenter) {
+        String desc = getContext().getString(R.string.about_vot_desc);
+        if (desc == null || desc.isEmpty()) {
+            return;
+        }
+
+        String title = getContext().getString(R.string.about_vot_title);
+        String url = getContext().getString(R.string.about_vot_url);
+
+        OptionItem aboutOption = UiOptionItem.from(
+                title,
+                desc,
+                url != null && !url.isEmpty() ?
+                        option -> Utils.openLink(getContext(), Utils.toQrCodeLink(url)) : null
+        );
+
+        settingsPresenter.appendSingleButton(aboutOption);
     }
 
     private void appendAutoUpdateSwitch(AppDialogPresenter settingsPresenter) {

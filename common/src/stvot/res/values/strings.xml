@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string translatable="false" name="app_name"><![CDATA[SmartTube VOT]]></string>
+    <string name="about_vot_title">О проекте SmartTube VOT</string>
+    <string name="about_vot_desc">SmartTube VOT — неофициальная сборка SmartTube для Android TV с интегрированным VOT-переводом, Яндекс ID и поддержкой «Живого голоса». Основано на SmartTube.</string>
+    <string name="about_vot_url" translatable="false">https://github.com/Kiryuhak/SmartTube-VOT</string>
+</resources>

@@ -794,4 +794,7 @@
         <item quantity="one">%s second</item>
         <item quantity="other">%s seconds</item>
     </plurals>
+    <string name="about_vot_title" translatable="false"></string>
+    <string name="about_vot_desc" translatable="false"></string>
+    <string name="about_vot_url" translatable="false"></string>
 </resources>
