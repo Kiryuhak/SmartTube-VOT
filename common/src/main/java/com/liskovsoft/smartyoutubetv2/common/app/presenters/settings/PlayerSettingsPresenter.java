@@ -24,6 +24,8 @@ import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.common.utils.VotTokenEditDialog;
 import com.liskovsoft.youtubeapi.service.internal.MediaServiceData;
 
+import android.content.Intent;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -212,6 +214,8 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
 
         options.add(UiOptionItem.from(status, optionItem -> showVotTokenDialog()));
 
+        options.add(UiOptionItem.from("Войти в Яндекс", optionItem -> startYandexOAuth()));
+
         options.add(UiOptionItem.from(getContext().getString(R.string.vot_edit_token), optionItem -> showVotTokenDialog()));
 
         options.add(UiOptionItem.from(getContext().getString(R.string.vot_paste_clipboard_action),
@@ -234,6 +238,7 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
                 optionItem -> {
                     if (!mVotData.hasOAuthToken()) {
                         MessageHelpers.showMessage(getContext(), R.string.vot_error_auth_required);
+                        startYandexOAuth();
                         return;
                     }
                     mVotData.setLivelyVoiceEnabled(optionItem.isSelected());
@@ -260,6 +265,20 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
                 MessageHelpers.showMessage(getContext(), R.string.vot_token_saved);
             }
         });
+    }
+
+    private void startYandexOAuth() {
+        Intent intent = new Intent();
+        intent.setClassName(
+                getContext(),
+                "com.liskovsoft.smartyoutubetv2.tv.ui.oauth.YandexOAuthActivity"
+        );
+
+        try {
+            getContext().startActivity(intent);
+        } catch (Exception e) {
+            MessageHelpers.showMessage(getContext(), e.getMessage());
+        }
     }
 
     private void appendPlayerButtonsCategory(AppDialogPresenter settingsPresenter) {

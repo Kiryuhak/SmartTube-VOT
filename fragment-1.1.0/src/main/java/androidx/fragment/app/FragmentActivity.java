@@ -163,6 +163,7 @@ public class FragmentActivity extends ComponentActivity implements
             mPendingFragmentActivityResults.remove(requestIndex);
             if (who == null) {
                 Log.w(TAG, "Activity result delivered for unknown Fragment.");
+                super.onActivityResult(requestCode, resultCode, data);
                 return;
             }
             Fragment targetFragment = mFragments.findFragmentByWho(who);
@@ -720,9 +721,7 @@ public class FragmentActivity extends ComponentActivity implements
      * an {@link IllegalArgumentException} if the code is not valid.
      */
     static void checkForValidRequestCode(int requestCode) {
-        if ((requestCode & 0xffff0000) != 0) {
-            throw new IllegalArgumentException("Can only use lower 16 bits for requestCode");
-        }
+        // No-op: allow 32-bit requestCode for ActivityResultRegistry compatibility
     }
 
     @Override
