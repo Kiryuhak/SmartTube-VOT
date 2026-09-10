@@ -1,0 +1,235 @@
+name: Check Upstream Updates
+
+on:
+  schedule:
+    - cron: '0 6 * * *' # Ежедневно в 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  check-upstreams:
+    name: Check Upstream & Create PR/Issue
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Check and integrate SmartTube upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Подключение remote для официального SmartTube..."
+          git remote add upstream https://github.com/yuliskov/SmartTube.git 2>/dev/null || git remote set-url upstream https://github.com/yuliskov/SmartTube.git
+          git fetch upstream master
+
+          UPSTREAM_SHA=$(git rev-parse upstream/master)
+          LAST_SHA=$(jq -r '.smarttube.last_integrated_sha' .upstream-sync.json 2>/dev/null || echo "")
+
+          echo "SmartTube upstream master SHA: $UPSTREAM_SHA"
+          echo "Последний интегрированный SHA:  $LAST_SHA"
+
+          if [ "$UPSTREAM_SHA" = "$LAST_SHA" ]; then
+            echo "Апстрим SmartTube актуален. Новых коммитов нет."
+          else
+            SHORT_SHA="${UPSTREAM_SHA:0:9}"
+            BRANCH_NAME="update/upstream-smarttube-${SHORT_SHA}"
+
+            # Проверка 1: существует ли уже открытый PR для этого коммита
+            EXISTING_PR=$(gh pr list --state open --search "upstream SmartTube [${SHORT_SHA}] in:title" --json number -q '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$EXISTING_PR" ]; then
+              echo "PR #${EXISTING_PR} для коммита ${SHORT_SHA} уже открыт. Пропускаем создание дубликата."
+            else
+              # Проверка 2: существует ли уже открытый Issue о конфликте для этого коммита
+              EXISTING_ISSUE=$(gh issue list --state open --search "Конфликт слияния upstream SmartTube [${SHORT_SHA}] in:title" --json number -q '.[0].number' 2>/dev/null || echo "")
+              if [ -n "$EXISTING_ISSUE" ]; then
+                echo "Issue #${EXISTING_ISSUE} о конфликте слияния для коммита ${SHORT_SHA} уже открыт. Пропускаем создание дубликата."
+              else
+                echo "Создание сервисной ветки $BRANCH_NAME и проверка слияния..."
+                git checkout -b "$BRANCH_NAME" origin/main
+
+                if git merge --no-commit --no-ff upstream/master; then
+                  echo "Слияние прошло без конфликтов. Обновление .upstream-sync.json..."
+                  python3 -c "
+                  import json
+                  with open('.upstream-sync.json', 'r') as f:
+                      d = json.load(f)
+                  d['smarttube']['last_integrated_sha'] = '${UPSTREAM_SHA}'
+                  with open('.upstream-sync.json', 'w') as f:
+                      json.dump(d, f, indent=2)
+                  "
+                  git add .upstream-sync.json
+                  git commit -m "Интеграция upstream SmartTube (${SHORT_SHA})"
+                  git push origin "$BRANCH_NAME"
+
+                  COMMITS_LIST=$(git log --oneline "${LAST_SHA}..${UPSTREAM_SHA}" | head -n 15)
+
+                  cat << EOF > /tmp/pr_body.md
+          ### Обнаружены новые коммиты в официальном репозитории SmartTube
+
+          **Источник:** [yuliskov/SmartTube](https://github.com/yuliskov/SmartTube) (\`master\`)
+          **Коммит апстрима:** \`${UPSTREAM_SHA}\`
+
+          #### Список коммитов:
+          \`\`\`
+          ${COMMITS_LIST}
+          \`\`\`
+
+          Автоматическое слияние выполнено успешно в отдельную ветку \`${BRANCH_NAME}\`.
+          После проверки CI и ручного тестирования выполните слияние данного PR в \`main\`.
+          EOF
+
+                  gh pr create \
+                    --base main \
+                    --head "$BRANCH_NAME" \
+                    --title "Обновление upstream SmartTube [${SHORT_SHA}]" \
+                    --body-file /tmp/pr_body.md
+
+                  rm -f /tmp/pr_body.md
+                  echo "Создан Pull Request для коммита ${SHORT_SHA}."
+                else
+                  echo "Обнаружен конфликт слияния! Откат слияния..."
+                  CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
+                  git merge --abort || true
+                  git checkout main
+                  git branch -D "$BRANCH_NAME" || true
+
+                  cat << EOF > /tmp/issue_body.md
+          ### Обнаружен конфликт при проверке обновлений официального SmartTube
+
+          **Источник:** [yuliskov/SmartTube](https://github.com/yuliskov/SmartTube) (\`master\`)
+          **Коммит апстрима:** \`${UPSTREAM_SHA}\`
+
+          #### Конфликтующие файлы:
+          \`\`\`
+          ${CONFLICT_FILES}
+          \`\`\`
+
+          Автоматическое слияние отклонено без изменений в ветке \`main\`.
+          Требуется ручное разрешение конфликтов.
+          EOF
+
+                  gh issue create \
+                    --title "Конфликт слияния upstream SmartTube [${SHORT_SHA}]" \
+                    --body-file /tmp/issue_body.md
+
+                  rm -f /tmp/issue_body.md
+                  echo "Создан Issue с описанием конфликта слияния."
+                fi
+              fi
+            fi
+          fi
+
+      - name: Check and integrate VOT upstream
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Подключение remote для VOT upstream..."
+          git remote add vsvoice https://github.com/vsvoice/SmartTube.git 2>/dev/null || git remote set-url vsvoice https://github.com/vsvoice/SmartTube.git
+          git fetch vsvoice patch-1
+
+          VOT_SHA=$(git rev-parse vsvoice/patch-1)
+          LAST_VOT_SHA=$(jq -r '.vsvoice.last_integrated_sha' .upstream-sync.json 2>/dev/null || echo "")
+
+          echo "VOT upstream patch-1 SHA: $VOT_SHA"
+          echo "Последний интегрированный SHA: $LAST_VOT_SHA"
+
+          if [ "$VOT_SHA" = "$LAST_VOT_SHA" ]; then
+            echo "Апстрим VOT актуален. Новых коммитов нет."
+          else
+            SHORT_SHA="${VOT_SHA:0:9}"
+            BRANCH_NAME="update/upstream-vot-${SHORT_SHA}"
+
+            EXISTING_PR=$(gh pr list --state open --search "upstream VOT [${SHORT_SHA}] in:title" --json number -q '.[0].number' 2>/dev/null || echo "")
+            if [ -n "$EXISTING_PR" ]; then
+              echo "PR #${EXISTING_PR} для VOT коммита ${SHORT_SHA} уже открыт. Пропускаем создание дубликата."
+            else
+              EXISTING_ISSUE=$(gh issue list --state open --search "Конфликт слияния upstream VOT [${SHORT_SHA}] in:title" --json number -q '.[0].number' 2>/dev/null || echo "")
+              if [ -n "$EXISTING_ISSUE" ]; then
+                echo "Issue #${EXISTING_ISSUE} для VOT коммита уже открыт. Пропускаем создание дубликата."
+              else
+                echo "Создание сервисной ветки $BRANCH_NAME и проверка слияния..."
+                git checkout -b "$BRANCH_NAME" origin/main
+
+                if git merge --no-commit --no-ff vsvoice/patch-1; then
+                  echo "Слияние VOT успешно. Обновление .upstream-sync.json..."
+                  python3 -c "
+                  import json
+                  with open('.upstream-sync.json', 'r') as f:
+                      d = json.load(f)
+                  d['vsvoice']['last_integrated_sha'] = '${VOT_SHA}'
+                  with open('.upstream-sync.json', 'w') as f:
+                      json.dump(d, f, indent=2)
+                  "
+                  git add .upstream-sync.json
+                  git commit -m "Интеграция upstream VOT (${SHORT_SHA})"
+                  git push origin "$BRANCH_NAME"
+
+                  COMMITS_LIST=$(git log --oneline "${LAST_VOT_SHA}..${VOT_SHA}" | head -n 15)
+
+                  cat << EOF > /tmp/pr_vot_body.md
+          ### Обнаружены новые коммиты в репозитории VOT
+
+          **Источник:** [vsvoice/SmartTube](https://github.com/vsvoice/SmartTube) (\`patch-1\`)
+          **Коммит апстрима:** \`${VOT_SHA}\`
+
+          #### Список коммитов:
+          \`\`\`
+          ${COMMITS_LIST}
+          \`\`\`
+
+          Автоматическое слияние выполнено успешно в ветку \`${BRANCH_NAME}\`. Требуется проверка мейнтейнером.
+          EOF
+
+                  gh pr create \
+                    --base main \
+                    --head "$BRANCH_NAME" \
+                    --title "Обновление upstream VOT [${SHORT_SHA}]" \
+                    --body-file /tmp/pr_vot_body.md
+
+                  rm -f /tmp/pr_vot_body.md
+                  echo "Создан Pull Request для VOT коммита ${SHORT_SHA}."
+                else
+                  echo "Обнаружен конфликт слияния в VOT! Откат..."
+                  CONFLICT_FILES=$(git diff --name-only --diff-filter=U)
+                  git merge --abort || true
+                  git checkout main
+                  git branch -D "$BRANCH_NAME" || true
+
+                  cat << EOF > /tmp/issue_vot_body.md
+          ### Обнаружен конфликт при проверке обновлений VOT
+
+          **Источник:** [vsvoice/SmartTube](https://github.com/vsvoice/SmartTube) (\`patch-1\`)
+          **Коммит апстрима:** \`${VOT_SHA}\`
+
+          #### Конфликтующие файлы:
+          \`\`\`
+          ${CONFLICT_FILES}
+          \`\`\`
+
+          Автоматическое слияние отклонено без изменений в ветке \`main\`.
+          EOF
+
+                  gh issue create \
+                    --title "Конфликт слияния upstream VOT [${SHORT_SHA}]" \
+                    --body-file /tmp/issue_vot_body.md
+
+                  rm -f /tmp/issue_vot_body.md
+                  echo "Создан Issue с описанием конфликта слияния VOT."
+                fi
+              fi
+            fi
+          fi

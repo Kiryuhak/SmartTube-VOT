@@ -1,0 +1,23 @@
+{
+  "package": {
+    "downloadUrl": "https://github.com/Kiryuhak/SmartTube-VOT/releases/latest/download/smarttube_vot.apk"
+  },
+  "32.45-vot.1": {
+    "versionCode": 2435001,
+    "changelog": [
+      "Voice-over translation via Yandex VOT for Android TV",
+      "Yandex OAuth and Lively Voice support",
+      "Dedicated stvot flavor with isolated package ID",
+      "Adaptive TV launcher icon and banner",
+      "In-app updater support"
+    ],
+    "changelog_ru": [
+      "Интеграция закадрового голосового перевода видео через Яндекс (VOT) для Android TV",
+      "Поддержка «Живого голоса» и авторизации через Яндекс ID (OAuth)",
+      "Отдельный flavor stvot с собственным applicationId (io.github.kiryuhak.smarttubevot.stable) для независимой установки",
+      "Автоматическая проверка и загрузка обновлений из репозитория SmartTube-VOT",
+      "Исправлено отображение иконки приложения в лаунчере Android TV",
+      "Оптимизирован запуск перевода: автозапуск только для проверенных иностранных дорожек"
+    ]
+  }
+}

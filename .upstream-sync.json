@@ -1,0 +1,12 @@
+{
+  "smarttube": {
+    "repo": "https://github.com/yuliskov/SmartTube.git",
+    "branch": "master",
+    "last_integrated_sha": "a6d8d81537d005ee6339906eb68bbbb91c20f6d9"
+  },
+  "vsvoice": {
+    "repo": "https://github.com/vsvoice/SmartTube.git",
+    "branch": "patch-1",
+    "last_integrated_sha": "b7ddbbd626635ed9a095495e52d8e0f306c3aeed"
+  }
+}

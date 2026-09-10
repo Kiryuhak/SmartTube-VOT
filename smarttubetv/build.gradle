@@ -163,11 +163,30 @@ android {
         }
         stvot {
             applicationId "io.github.kiryuhak.smarttubevot.stable"
+            minSdkVersion 21
             targetSdkVersion project.properties.compileSdkVersion
             matchingFallbacks = ['ststable']
-			if (keystorePropertiesFile.exists()) {
-				signingConfig signingConfigs.release
-			}
+
+            def votSuffix = project.findProperty("votVersionSuffix") ?: "-vot.1"
+            def customVersionName = project.findProperty("votVersionName")
+            def customVersionCode = project.findProperty("votVersionCode")
+
+            def effectiveVersionName = customVersionName ?: (defaultConfig.versionName + votSuffix)
+            versionName effectiveVersionName
+
+            def matcher = (effectiveVersionName =~ /-vot\.(\d+)/)
+            def votPatch = matcher.find() ? matcher.group(1).toInteger() : 1
+            if (votPatch < 1 || votPatch > 999) {
+                throw new GradleException("votPatch must be strictly between 1 and 999! Current: " + votPatch)
+            }
+
+            def baseCode = defaultConfig.versionCode
+            versionCode customVersionCode ? customVersionCode.toInteger() : (baseCode * 1000 + votPatch)
+
+            manifestPlaceholders = [YANDEX_CLIENT_ID: "a80318baa39742079143855c77b13709"]
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
         stfdroid {
             applicationId "app.smarttube.fdroid"
@@ -179,6 +198,7 @@ android {
 
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
+	stvotImplementation "com.yandex.android:authsdk:3.1.3"
 
     implementation 'androidx.leanback:leanback:' + leanbackXVersion
     implementation 'androidx.leanback:leanback-preference:' + leanbackXVersion
