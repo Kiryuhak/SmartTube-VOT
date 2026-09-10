@@ -86,47 +86,107 @@ jobs:
       - name: Verify monotonicity with previous release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ steps.tag_info.outputs.TAG }}
           EXPECTED_CODE: ${{ steps.tag_info.outputs.EXPECTED_CODE }}
-          BASE_CODE: ${{ steps.tag_info.outputs.BASE_CODE }}
+          REPO: ${{ github.repository }}
         run: |
-          echo "Проверка предыдущего релиза..."
-          LATEST_RELEASE_JSON=$(gh api repos/${{ github.repository }}/releases/latest 2>/dev/null || true)
+          python3 -c "
+          import sys, os, re, json, urllib.request, subprocess
 
-          if [ -z "$LATEST_RELEASE_JSON" ] || [ "$LATEST_RELEASE_JSON" = "null" ]; then
-            echo "Первый релиз в репозитории: предыдущие релизы не найдены. Проверка монотонности пропущена."
-          else
-            echo "Загрузка smarttube_vot.json из последнего релиза..."
-            JSON_URL=$(echo "$LATEST_RELEASE_JSON" | jq -r '.assets[] | select(.name=="smarttube_vot.json") | .browser_download_url' 2>/dev/null || true)
-            PREV_CODE=""
+          tag_name = os.environ['TAG_NAME']
+          expected_code = int(os.environ['EXPECTED_CODE'])
+          repo = os.environ['REPO']
+          token = os.environ.get('GH_TOKEN', '')
 
-            if [ -n "$JSON_URL" ] && [ "$JSON_URL" != "null" ]; then
-              PREV_CODE=$(curl -sSL "$JSON_URL" | jq -r 'to_entries | map(select(.key != "package")) | .[0].value.versionCode // empty' 2>/dev/null || true)
-            fi
+          headers = {
+              'Accept': 'application/vnd.github.v3+json',
+              'User-Agent': 'smarttube-vot-release-ci'
+          }
+          if token:
+              headers['Authorization'] = f'Bearer {token}'
 
-            # Fallback к анализу метаданных тега предыдущего релиза
-            if [ -z "$PREV_CODE" ] || [ "$PREV_CODE" = "null" ]; then
-              echo "smarttube_vot.json не найден в предыдущем релизе. Попытка определить по тегу..."
-              PREV_TAG=$(echo "$LATEST_RELEASE_JSON" | jq -r '.tag_name // empty')
-              if [[ "$PREV_TAG" =~ ^v([0-9]+\.[0-9]+)-vot\.([0-9]+)$ ]]; then
-                PREV_PATCH="${BASH_REMATCH[2]}"
-                PREV_CODE=$(( BASE_CODE * 1000 + PREV_PATCH ))
-                echo "Определён предыдущий versionCode по тегу $PREV_TAG: $PREV_CODE"
-              fi
-            fi
+          url = f'https://api.github.com/repos/{repo}/releases?per_page=100'
+          req = urllib.request.Request(url, headers=headers)
 
-            # Защитная проверка 2: если определить надёжно невозможно - останов релиза
-            if [ -z "$PREV_CODE" ] || [ "$PREV_CODE" = "null" ]; then
-              echo "::error::Не удалось надёжно определить предыдущий versionCode из последнего релиза! Остановка релиза в соответствии с политикой безопасности."
-              exit 1
-            fi
+          try:
+              with urllib.request.urlopen(req) as resp:
+                  releases = json.loads(resp.read().decode('utf-8'))
+          except Exception as e:
+              print(f'Предупреждение при запросе списка релизов: {e}')
+              releases = []
 
-            echo "Предыдущий versionCode: $PREV_CODE, текущий versionCode: $EXPECTED_CODE"
-            if [ "$EXPECTED_CODE" -le "$PREV_CODE" ]; then
-              echo "::error::Текущий versionCode ($EXPECTED_CODE) должен быть строго больше предыдущего ($PREV_CODE)! Релиз отклонён."
-              exit 1
-            fi
-            echo "Проверка строгой монотонности успешно пройдена ($EXPECTED_CODE > $PREV_CODE)."
-          fi
+          if not isinstance(releases, list):
+              releases = []
+
+          vot_pattern = re.compile(r'^v([0-9]+\.[0-9]+)-vot\.([0-9]+)$')
+
+          # Фильтруем только релизы SmartTube VOT, исключая текущий тег и черновики
+          valid_prev_releases = [
+              r for r in releases
+              if r.get('tag_name') != tag_name
+              and not r.get('draft', False)
+              and vot_pattern.match(r.get('tag_name', ''))
+          ]
+
+          # Случай A: Предыдущих релизов SmartTube VOT нет (первый релиз)
+          if not valid_prev_releases:
+              print('Первый релиз SmartTube VOT: проверка предыдущего versionCode не требуется.')
+              sys.exit(0)
+
+          prev_release = valid_prev_releases[0]
+          prev_tag = prev_release.get('tag_name', '')
+          print(f'Найден предыдущий релиз SmartTube VOT: {prev_tag}')
+
+          prev_code = None
+
+          # Шаг 1: Поиск smarttube_vot.json в ассетах предыдущего релиза
+          json_url = None
+          for asset in prev_release.get('assets', []):
+              if asset.get('name') == 'smarttube_vot.json':
+                  json_url = asset.get('browser_download_url')
+                  break
+
+          if json_url:
+              try:
+                  req_json = urllib.request.Request(json_url, headers=headers)
+                  with urllib.request.urlopen(req_json) as jresp:
+                      jdata = json.loads(jresp.read().decode('utf-8'))
+                      for key, val in jdata.items():
+                          if key != 'package' and isinstance(val, dict) and 'versionCode' in val:
+                              prev_code = int(val['versionCode'])
+                              print(f'Извлечён предыдущий versionCode из smarttube_vot.json: {prev_code}')
+                              break
+              except Exception as e:
+                  print(f'Предупреждение при чтении smarttube_vot.json: {e}')
+
+          # Шаг 2: Fallback к git-метаданным предыдущего тега с учётом его базовой версии
+          if prev_code is None:
+              m = vot_pattern.match(prev_tag)
+              if m:
+                  prev_patch = int(m.group(2))
+                  try:
+                      cmd = ['git', 'show', f'{prev_tag}:smarttubetv/build.gradle']
+                      res = subprocess.run(cmd, capture_output=True, text=True, check=True)
+                      code_match = re.search(r'versionCode\s+(\d+)', res.stdout)
+                      if code_match:
+                          prev_base_code = int(code_match.group(1))
+                          prev_code = prev_base_code * 1000 + prev_patch
+                          print(f'Определён baseVersionCode из git ({prev_tag}): {prev_base_code} -> предыдущий versionCode: {prev_code}')
+                  except Exception as e:
+                      print(f'Не удалось определить baseVersionCode из git для {prev_tag}: {e}')
+
+          if prev_code is None:
+              print(f'::error::Не удалось надёжно определить предыдущий versionCode из релиза ({prev_tag})! Остановка релиза в соответствии с политикой безопасности.', file=sys.stderr)
+              sys.exit(1)
+
+          print(f'Предыдущий versionCode: {prev_code}, ожидаемый текущий: {expected_code}')
+
+          if expected_code <= prev_code:
+              print(f'::error::Текущий versionCode ({expected_code}) должен быть строго больше предыдущего ({prev_code})! Релиз отклонён.', file=sys.stderr)
+              sys.exit(1)
+
+          print(f'Проверка строгой монотонности успешно пройдена ({expected_code} > {prev_code}).')
+          "
 
       - name: Configure release signing
         env:
