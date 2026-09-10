@@ -55,7 +55,8 @@ public final class VotAudioTrackHelper {
         }
         String t = title.toString().toLowerCase(Locale.US);
         if (t.contains("english") || t.contains("original") || t.contains("dubbed")
-                || t.matches(".*\\ben[- ]?(us|gb)?\\b.*")) {
+                || t.matches(".*\\ben[- ]?(us|gb)?\\b.*")
+                || t.contains("russian") || t.contains("русский") || t.contains("русская") || t.contains("рус")) {
             return title.toString();
         }
         return null;
@@ -133,7 +134,36 @@ public final class VotAudioTrackHelper {
     }
 
     public static boolean isRussianLang(@Nullable String langCode) {
-        return langCode != null && langCode.startsWith("ru");
+        if (langCode == null) {
+            return false;
+        }
+        String normalized = langCode.trim().toLowerCase(Locale.US).replace('_', '-');
+        if (normalized.isEmpty()) {
+            return false;
+        }
+        return normalized.equals("ru")
+                || normalized.startsWith("ru-")
+                || normalized.equals("rus")
+                || normalized.equals("russian")
+                || normalized.equals("рус")
+                || normalized.startsWith("рус-")
+                || normalized.equals("русский")
+                || normalized.equals("русская");
+    }
+
+    public static boolean isKnownLanguage(@Nullable String langCode) {
+        if (langCode == null) {
+            return false;
+        }
+        String normalized = langCode.trim().toLowerCase(Locale.US).replace('_', '-');
+        return !normalized.isEmpty() && !normalized.equals("und") && !normalized.equals("unknown");
+    }
+
+    public static boolean isExplicitNonRussian(@Nullable TrackInfo info) {
+        if (info == null || !isKnownLanguage(info.langCode)) {
+            return false;
+        }
+        return !isRussianLang(info.langCode);
     }
 
     public static boolean isEnglishLang(@Nullable String langCode) {
@@ -175,14 +205,13 @@ public final class VotAudioTrackHelper {
         }
         for (FormatItem format : formats) {
             TrackInfo info = from(format);
-            if (info.langCode != null && !isRussianLang(info.langCode) && isOriginalTrack(info)) {
+            if (isExplicitNonRussian(info) && isOriginalTrack(info)) {
                 return true;
             }
-            if (info.langCode != null && !isRussianLang(info.langCode) && !isDubbed(info)) {
+            if (isExplicitNonRussian(info) && !isDubbed(info)) {
                 return true;
             }
-            // Legacy stream: bare "en" without xtags / (original) — still foreign source audio.
-            if (isEnglishLang(info.langCode) && !hasRussianOriginalInList(formats)
+            if (isExplicitNonRussian(info) && !hasRussianOriginalInList(formats)
                     && !hasYoutubeRussianAutoDubInList(formats)) {
                 return true;
             }
@@ -239,42 +268,18 @@ public final class VotAudioTrackHelper {
         return false;
     }
 
-    /** Bitrate variants only — no lang in Exo yet, and no Russian markers in labels. */
+    /** Absence of language metadata NEVER means non-Russian audio. */
     private static boolean isMetadataPoorNonRussianAudioInternal(@Nullable List<FormatItem> formats) {
-        if (formats == null || formats.isEmpty()) {
-            return false;
-        }
-        boolean sawAudio = false;
-        boolean sawLang = false;
-        for (FormatItem format : formats) {
-            if (format == null || format.getType() != FormatItem.TYPE_AUDIO) {
-                continue;
-            }
-            sawAudio = true;
-            TrackInfo info = from(format);
-            if (info.langCode != null) {
-                sawLang = true;
-                if (isRussianLang(info.langCode)) {
-                    return false;
-                }
-            }
-            if (info.rawLabel != null) {
-                String raw = info.rawLabel.toLowerCase(Locale.US);
-                if (raw.contains("russian") || raw.contains(" ru ") || raw.startsWith("ru ")
-                        || raw.contains("(ru") || raw.contains("ru (")) {
-                    return false;
-                }
-            }
-        }
-        return sawAudio && !sawLang;
+        return false;
     }
 
     /**
-     * Mirrors manual button policy: start Yandex unless clearly Russian original content.
+     * AUTO start policy: start Yandex ONLY when current audio or track list has explicit non-Russian language.
+     * Never start if language is unknown, missing, und, or Russian.
      */
     public static boolean shouldAutoStartLikeManual(@Nullable TrackInfo current,
                                                     @Nullable List<FormatItem> formats) {
-        if (isLikelyRussianContent(current, formats)) {
+        if (current != null && isRussianLang(current.langCode)) {
             return false;
         }
         if (isRussianOriginal(current)) {
@@ -283,16 +288,10 @@ public final class VotAudioTrackHelper {
         if (isYoutubeRussianAutoDub(current)) {
             return hasNonRussianOriginalCandidate(formats);
         }
-        if (shouldStartYandex(current)) {
+        if (isExplicitNonRussian(current)) {
             return true;
         }
         if (hasNonRussianOriginalCandidate(formats)) {
-            return true;
-        }
-        if (current != null && current.langCode != null && !isRussianLang(current.langCode)) {
-            return true;
-        }
-        if (isLegacyEnglishStream(current, formats)) {
             return true;
         }
         return false;

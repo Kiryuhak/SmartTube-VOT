@@ -36,11 +36,18 @@ public class VotData extends SharedPreferencesBase {
     }
 
     public void setOAuthToken(String token) {
-        putString(OAUTH_TOKEN, normalizeToken(token));
+        String normalized = normalizeToken(token);
+        putString(OAUTH_TOKEN, normalized);
+        if (!TextUtils.isEmpty(normalized)) {
+            setLivelyVoiceEnabled(true);
+        } else {
+            setLivelyVoiceEnabled(false);
+        }
     }
 
     public void clearOAuthToken() {
         putString(OAUTH_TOKEN, "");
+        setLivelyVoiceEnabled(false);
     }
 
     public boolean hasOAuthToken() {
@@ -48,7 +55,7 @@ public class VotData extends SharedPreferencesBase {
     }
 
     public boolean isLivelyVoiceEnabled() {
-        return getBoolean(LIVELY_VOICE, false) && hasOAuthToken();
+        return hasOAuthToken() && getBoolean(LIVELY_VOICE, true);
     }
 
     public void setLivelyVoiceEnabled(boolean enabled) {
