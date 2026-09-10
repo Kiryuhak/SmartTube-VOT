@@ -1,6 +1,7 @@
 package com.liskovsoft.smartyoutubetv2.common.app.presenters;
 
 import android.annotation.SuppressLint;
+import android.app.Activity;
 import android.content.Context;
 import android.text.TextUtils;
 import android.util.Pair;
@@ -44,6 +45,7 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.AccountsData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.BlockedChannelData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.MainUIData;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
+import com.liskovsoft.smartyoutubetv2.common.utils.VotOnboardingHelper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -125,6 +127,8 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         int selectedSectionIndex = findSectionIndex(mCurrentSection != null ? mCurrentSection.getId() : mBootstrapSectionId);
         mBootstrapSectionId = -1;
         getView().selectSection(selectedSectionIndex != -1 ? selectedSectionIndex : mBootSectionIndex, true);
+
+        checkYandexOnboarding();
     }
 
     @Override
@@ -139,6 +143,8 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         super.onViewResumed();
 
         refreshIfNeeded();
+
+        checkYandexOnboarding();
     }
 
     private void refreshIfNeeded() {
@@ -409,6 +415,7 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         super.onViewDestroyed();
         disposeActions();
         saveSelectedItems();
+        VotOnboardingHelper.dismiss();
     }
 
     @Override
@@ -1145,6 +1152,8 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
         updateChannelSorting();
         updatePlaylistsStyle();
         updateSections();
+
+        checkYandexOnboarding();
     }
 
     public Video getCurrentVideo() {
@@ -1227,6 +1236,12 @@ public class BrowsePresenter extends BasePresenter<BrowseView> implements Sectio
             if (lastHistoryItem == null || state.timestamp > stateService.getSessionStartTimeMs()) {
                 videoGroup.add(0, state.video);
             }
+        }
+    }
+
+    private void checkYandexOnboarding() {
+        if (getContext() instanceof Activity) {
+            VotOnboardingHelper.checkOnboarding((Activity) getContext());
         }
     }
 }

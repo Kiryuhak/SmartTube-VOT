@@ -4,4 +4,8 @@
     <string name="about_vot_title">О проекте SmartTube VOT</string>
     <string name="about_vot_desc">SmartTube VOT — неофициальная сборка SmartTube для Android TV с интегрированным VOT-переводом, Яндекс ID и поддержкой «Живого голоса». Основано на SmartTube.</string>
     <string name="about_vot_url" translatable="false">https://github.com/Kiryuhak/SmartTube-VOT</string>
+    <string name="vot_onboarding_title">Включить Живой голос?</string>
+    <string name="vot_onboarding_message">Для перевода с “Живым голосом” войдите через Яндекс ID.\nЭто можно сделать сейчас или позже в настройках VOT.</string>
+    <string name="vot_onboarding_login">Войти в Яндекс</string>
+    <string name="vot_onboarding_later">Позже</string>
 </resources>

@@ -797,4 +797,8 @@
     <string name="about_vot_title" translatable="false"></string>
     <string name="about_vot_desc" translatable="false"></string>
     <string name="about_vot_url" translatable="false"></string>
+    <string name="vot_onboarding_title" translatable="false"></string>
+    <string name="vot_onboarding_message" translatable="false"></string>
+    <string name="vot_onboarding_login" translatable="false"></string>
+    <string name="vot_onboarding_later" translatable="false"></string>
 </resources>

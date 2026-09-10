@@ -10,11 +10,12 @@ public class VotData extends SharedPreferencesBase {
     private static final String PREFS_NAME = "vot_data";
     private static final String OAUTH_TOKEN = "yandex_oauth_token";
     private static final String LIVELY_VOICE = "use_lively_voice";
+    private static final String PREF_ONBOARDING_SHOWN = "yandex_onboarding_shown";
     private static final String ORIGINAL_VOLUME_PERCENT = "original_volume_percent";
     private static final String TRANSLATION_VOLUME_PERCENT = "translation_volume_percent";
     private static final String AUTO_TRANSLATE = "auto_translate_enabled";
     private static final String PREFER_YOUTUBE_AUTO_DUB = "prefer_youtube_auto_dub";
-    private static final int DEFAULT_ORIGINAL_VOLUME_PERCENT = 15;
+    private static final int DEFAULT_ORIGINAL_VOLUME_PERCENT = 5;
     private static final int DEFAULT_TRANSLATION_VOLUME_PERCENT = 100;
 
     @SuppressLint("StaticFieldLeak")
@@ -60,6 +61,14 @@ public class VotData extends SharedPreferencesBase {
 
     public void setLivelyVoiceEnabled(boolean enabled) {
         putBoolean(LIVELY_VOICE, enabled);
+    }
+
+    public boolean isOnboardingShown() {
+        return getBoolean(PREF_ONBOARDING_SHOWN, false);
+    }
+
+    public void setOnboardingShown(boolean shown) {
+        putBoolean(PREF_ONBOARDING_SHOWN, shown);
     }
 
     /** YouTube/original track level while translation plays (0–100%). */
