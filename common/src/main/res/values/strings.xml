@@ -801,4 +801,18 @@
     <string name="vot_onboarding_message" translatable="false"></string>
     <string name="vot_onboarding_login" translatable="false"></string>
     <string name="vot_onboarding_later" translatable="false"></string>
+    <string name="vot_yandex_status_authorized" translatable="false"></string>
+    <string name="vot_yandex_status_not_authorized" translatable="false"></string>
+    <string name="vot_yandex_login" translatable="false"></string>
+    <string name="vot_yandex_logout" translatable="false"></string>
+    <string name="vot_yandex_logout_done" translatable="false"></string>
+    <string name="vot_manual_token_entry" translatable="false"></string>
+    <string name="vot_preparing" translatable="false"></string>
+    <string name="vot_pending_waiting" translatable="false"></string>
+    <string name="vot_ready" translatable="false"></string>
+    <string name="vot_disabled" translatable="false"></string>
+    <string name="vot_error_timeout" translatable="false"></string>
+    <string name="vot_error_network" translatable="false"></string>
+    <string name="vot_error_playback" translatable="false"></string>
+    <string name="vot_unknown_lang_manual" translatable="false"></string>
 </resources>

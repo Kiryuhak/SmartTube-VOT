@@ -21,6 +21,7 @@ import com.liskovsoft.smartyoutubetv2.common.prefs.SearchData;
 import com.liskovsoft.smartyoutubetv2.common.prefs.VotData;
 import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
+import com.liskovsoft.smartyoutubetv2.common.utils.VotOnboardingHelper;
 import com.liskovsoft.smartyoutubetv2.common.utils.VotTokenEditDialog;
 import com.liskovsoft.youtubeapi.service.internal.MediaServiceData;
 
@@ -206,33 +207,32 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
     }
 
     private void appendVotCategory(AppDialogPresenter settingsPresenter) {
-        List<OptionItem> options = new ArrayList<>();
+        if (!VotOnboardingHelper.isStvot(getContext())) {
+            return;
+        }
 
-        String status = mVotData.hasOAuthToken()
-                ? getContext().getString(R.string.vot_token_status_set, mVotData.getTokenPreview())
-                : getContext().getString(R.string.vot_token_status_empty);
+        settingsPresenter.appendSingleButton(UiOptionItem.from(
+                getContext().getString(R.string.vot_settings_category),
+                optionItem -> showVotSettingsDialog()
+        ));
+    }
 
-        options.add(UiOptionItem.from(status, optionItem -> showVotTokenDialog()));
+    private void showVotSettingsDialog() {
+        AppDialogPresenter settingsPresenter = AppDialogPresenter.instance(getContext());
 
-        options.add(UiOptionItem.from("Войти в Яндекс", optionItem -> startYandexOAuth()));
+        settingsPresenter.appendSingleSwitch(UiOptionItem.from(
+                getContext().getString(R.string.vot_auto_translate),
+                getContext().getString(R.string.vot_auto_translate_desc),
+                option -> mVotData.setAutoTranslateEnabled(option.isSelected()),
+                mVotData.isAutoTranslateEnabled()));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.vot_edit_token), optionItem -> showVotTokenDialog()));
+        settingsPresenter.appendSingleSwitch(UiOptionItem.from(
+                getContext().getString(R.string.vot_prefer_youtube_dub),
+                getContext().getString(R.string.vot_prefer_youtube_dub_desc),
+                option -> mVotData.setPreferYoutubeAutoDub(option.isSelected()),
+                mVotData.isPreferYoutubeAutoDub()));
 
-        options.add(UiOptionItem.from(getContext().getString(R.string.vot_paste_clipboard_action),
-                optionItem -> VotTokenEditDialog.pasteFromClipboard(getContext(), token -> {
-                    if (token.isEmpty()) {
-                        mVotData.clearOAuthToken();
-                        MessageHelpers.showMessage(getContext(), R.string.vot_token_cleared);
-                    } else {
-                        mVotData.setOAuthToken(token);
-                        MessageHelpers.showMessage(getContext(), R.string.vot_token_saved);
-                    }
-                })));
-
-        settingsPresenter.appendStringsCategory(getContext().getString(R.string.vot_settings_category), options);
-
-        List<OptionItem> votToggles = new ArrayList<>();
-        votToggles.add(UiOptionItem.from(
+        settingsPresenter.appendSingleSwitch(UiOptionItem.from(
                 getContext().getString(R.string.vot_lively_voice),
                 getContext().getString(R.string.vot_lively_voice_desc),
                 optionItem -> {
@@ -244,7 +244,33 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
                     mVotData.setLivelyVoiceEnabled(optionItem.isSelected());
                 },
                 mVotData.isLivelyVoiceEnabled()));
-        settingsPresenter.appendCheckedCategory(getContext().getString(R.string.vot_lively_voice), votToggles);
+
+        String statusText = mVotData.hasOAuthToken()
+                ? getContext().getString(R.string.vot_yandex_status_authorized)
+                : getContext().getString(R.string.vot_yandex_status_not_authorized);
+
+        settingsPresenter.appendSingleButton(UiOptionItem.from(statusText, optionItem -> {
+            if (!mVotData.hasOAuthToken()) {
+                startYandexOAuth();
+            }
+        }));
+
+        if (mVotData.hasOAuthToken()) {
+            settingsPresenter.appendSingleButton(UiOptionItem.from(
+                    getContext().getString(R.string.vot_yandex_logout),
+                    optionItem -> performYandexLogout()
+            ));
+        } else {
+            settingsPresenter.appendSingleButton(UiOptionItem.from(
+                    getContext().getString(R.string.vot_yandex_login),
+                    optionItem -> startYandexOAuth()
+            ));
+        }
+
+        settingsPresenter.appendSingleButton(UiOptionItem.from(
+                getContext().getString(R.string.vot_manual_token_entry),
+                optionItem -> showVotTokenDialog()
+        ));
 
         settingsPresenter.appendRadioCategory(
                 getContext().getString(R.string.vot_original_volume),
@@ -252,18 +278,26 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
         settingsPresenter.appendRadioCategory(
                 getContext().getString(R.string.vot_translation_volume),
                 AppDialogUtil.createVotTranslationVolumeCategory(getContext()).options);
+
+        settingsPresenter.showDialog(getContext().getString(R.string.vot_settings_category));
+    }
+
+    private void performYandexLogout() {
+        mVotData.logoutYandex();
+        MessageHelpers.showMessage(getContext(), R.string.vot_yandex_logout_done);
+        AppDialogPresenter.instance(getContext()).closeDialog();
     }
 
     private void showVotTokenDialog() {
         VotTokenEditDialog.show(getContext(), mVotData.getOAuthToken(), token -> {
             if (token.isEmpty()) {
-                mVotData.clearOAuthToken();
-                mVotData.setLivelyVoiceEnabled(false);
+                mVotData.logoutYandex();
                 MessageHelpers.showMessage(getContext(), R.string.vot_token_cleared);
             } else {
                 mVotData.setOAuthToken(token);
                 MessageHelpers.showMessage(getContext(), R.string.vot_token_saved);
             }
+            AppDialogPresenter.instance(getContext()).closeDialog();
         });
     }
 

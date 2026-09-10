@@ -1,11 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string translatable="false" name="app_name"><![CDATA[SmartTube VOT]]></string>
-    <string name="about_vot_title">О проекте SmartTube VOT</string>
-    <string name="about_vot_desc">SmartTube VOT — неофициальная сборка SmartTube для Android TV с интегрированным VOT-переводом, Яндекс ID и поддержкой «Живого голоса». Основано на SmartTube.</string>
+    <string name="about_vot_title">About SmartTube VOT</string>
+    <string name="about_vot_desc">SmartTube VOT is an unofficial SmartTube build for Android TV with integrated VOT translation, Yandex ID and Lively Voice support. Based on SmartTube.</string>
     <string name="about_vot_url" translatable="false">https://github.com/Kiryuhak/SmartTube-VOT</string>
-    <string name="vot_onboarding_title">Включить Живой голос?</string>
-    <string name="vot_onboarding_message">Для перевода с “Живым голосом” войдите через Яндекс ID.\nЭто можно сделать сейчас или позже в настройках VOT.</string>
-    <string name="vot_onboarding_login">Войти в Яндекс</string>
-    <string name="vot_onboarding_later">Позже</string>
+    <string name="vot_onboarding_title">Enable Lively Voice?</string>
+    <string name="vot_onboarding_message">Sign in with Yandex ID to enable translation with Lively Voice.\nYou can do this now or later in VOT settings.</string>
+    <string name="vot_onboarding_login">Sign in with Yandex</string>
+    <string name="vot_onboarding_later">Later</string>
+
+    <!-- Pulse: Yandex ID UX -->
+    <string name="vot_yandex_status_authorized">Yandex ID: Authorized</string>
+    <string name="vot_yandex_status_not_authorized">Yandex ID: Not authorized</string>
+    <string name="vot_yandex_login">Sign in with Yandex</string>
+    <string name="vot_yandex_logout">Sign out of Yandex</string>
+    <string name="vot_yandex_logout_done">Signed out of Yandex ID</string>
+    <string name="vot_manual_token_entry">Enter token manually…</string>
+
+    <!-- Pulse: Translation UX statuses -->
+    <string name="vot_preparing">Preparing translation…</string>
+    <string name="vot_pending_waiting">Waiting for translation… (~%d min)</string>
+    <string name="vot_ready">Translation ready</string>
+    <string name="vot_disabled">Translation disabled</string>
+    <string name="vot_error_timeout">Translation timed out</string>
+    <string name="vot_error_network">Network error while fetching translation</string>
+    <string name="vot_error_playback">Failed to play translation</string>
+    <string name="vot_unknown_lang_manual">Audio track language unknown. Start translation manually.</string>
 </resources>
