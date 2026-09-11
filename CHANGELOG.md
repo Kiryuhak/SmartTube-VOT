@@ -1,6 +1,7 @@
 # История изменений
 
-Все заметные изменения в проекте SmartTube Vox (ранее SmartTube VOT) документируются в этом файле.
+Все заметные изменения в проекте SmartTube VOX (ранее SmartTube VOT) документируются в этом файле.
+SmartTube VOX — новое название проекта SmartTube VOT.
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/).
 
 ## [32.45-vot.4] — Echo

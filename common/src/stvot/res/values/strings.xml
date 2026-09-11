@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string translatable="false" name="app_name"><![CDATA[SmartTube Vox]]></string>
-    <string name="about_vot_title">About SmartTube Vox</string>
-    <string name="about_vot_desc">SmartTube Vox is an unofficial SmartTube build for Android TV with integrated VOT translation, Yandex ID and Lively Voice support. Based on SmartTube.</string>
+    <string translatable="false" name="app_name"><![CDATA[SmartTube VOX]]></string>
+    <string name="about_vot_title">About SmartTube VOX</string>
+    <string name="about_vot_desc">SmartTube VOX is an unofficial SmartTube build for Android TV with integrated VOT translation, Yandex ID and Lively Voice support. Based on SmartTube.</string>
     <string name="about_vot_url" translatable="false">https://github.com/Kiryuhak/SmartTube-Vox</string>
     <string name="vot_onboarding_title">Enable Lively Voice?</string>
     <string name="vot_onboarding_message">Sign in with Yandex ID to enable translation with Lively Voice.\nYou can do this now or later in VOT settings.</string>

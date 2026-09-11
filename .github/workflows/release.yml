@@ -324,7 +324,7 @@ jobs:
           with open('release_notes.md', 'w', encoding='utf-8') as f:
               f.write(section)
 
-          release_title = f'SmartTube Vox v{version}'
+          release_title = f'SmartTube VOX v{version}'
           try:
               header_line = re.search(rf'## \[{re.escape(version)}\]([^\n]*)', content)
               raw_suffix = header_line.group(1).strip() if header_line else ''
@@ -333,12 +333,12 @@ jobs:
               is_date = bool(re.match(r'^\d{4}-\d{2}-\d{2}$', codename))
               base_ver = version.split('-')[0]
               if codename and not is_date:
-                  release_title = f'SmartTube Vox {base_ver} — {codename}'
+                  release_title = f'SmartTube VOX {base_ver} — {codename}'
               else:
-                  release_title = f'SmartTube Vox v{version}'
+                  release_title = f'SmartTube VOX v{version}'
           except Exception as e:
               print(f'::warning::Не удалось извлечь кодовое имя релиза ({e}), используется fallback', file=sys.stderr)
-              release_title = f'SmartTube Vox v{version}'
+              release_title = f'SmartTube VOX v{version}'
 
           print(f'Сформирован заголовок релиза: {release_title}')
 
@@ -353,7 +353,7 @@ jobs:
               if line.strip().startswith(('-', '*'))
           ]
 
-          # 1. Основной манифест обновления SmartTube Vox
+          # 1. Основной манифест обновления SmartTube VOX
           json_vox = {
               'package': {
                   'downloadUrl': f'https://github.com/{sys.argv[1]}/releases/latest/download/smarttube_vox.apk'
@@ -421,7 +421,7 @@ jobs:
         run: |
           echo "Публикация GitHub Release для тега $TAG..."
           gh release create "$TAG" \
-            --title "${RELEASE_TITLE:-SmartTube Vox v$VERSION_NAME}" \
+            --title "${RELEASE_TITLE:-SmartTube VOX v$VERSION_NAME}" \
             --notes-file release_notes.md \
             smarttube_vox.apk \
             smarttube_vot.apk \
