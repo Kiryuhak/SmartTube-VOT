@@ -273,6 +273,19 @@ public class VotClient {
         mSession = decoded;
     }
 
+    /**
+     * Architecture hook for potential future Lively Voice -> standard voice fallback.
+     * Strict policy: Only return true if backend explicitly indicates that Lively Voice
+     * generation specifically failed, not on auth, network, or generic failure.
+     */
+    public static boolean isLivelyVoiceSpecificFailure(@Nullable VotTranslationResponse response) {
+        if (response == null || response.message == null) {
+            return false;
+        }
+        String msg = response.message.toLowerCase();
+        return msg.contains("lively") || msg.contains("neural voice unavailable");
+    }
+
     private void sleep(int sec) throws VotException {
         try {
             TimeUnit.SECONDS.sleep(sec);

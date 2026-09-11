@@ -19,7 +19,7 @@
         android:layout_height="20dp"
         android:layout_gravity="center_vertical"
         android:indeterminate="true"
-        android:indeterminateTint="#FF2020" />
+        android:indeterminateTint="#FFFF2020" />
 
     <ImageView
         android:id="@+id/vot_progress_icon"
@@ -35,7 +35,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:layout_marginStart="10dp"
-        android:textColor="#F5F5F5"
+        android:textColor="#FFF5F5F5"
         android:textSize="15sp"
         android:fontFamily="sans-serif-medium"
         android:singleLine="true"

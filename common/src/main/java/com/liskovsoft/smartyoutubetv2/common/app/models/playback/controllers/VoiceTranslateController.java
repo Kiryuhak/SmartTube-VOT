@@ -34,6 +34,7 @@ public class VoiceTranslateController extends BasePlayerController {
     public static final int BTN_OFF = 0;
     public static final int BTN_PENDING = 1;
     public static final int BTN_ON = 2;
+    public static final int BTN_ERROR = 3;
 
     private static final int STATE_OFF = 0;
     private static final int STATE_PENDING = 1;
@@ -82,6 +83,12 @@ public class VoiceTranslateController extends BasePlayerController {
         @Override
         public void run() {
             tryApplyAutoTranslate(false);
+        }
+    };
+
+    private final Runnable mResetErrorButtonRunnable = () -> {
+        if (mState == STATE_OFF) {
+            updateVoiceButton(BTN_OFF);
         }
     };
 
@@ -627,6 +634,7 @@ public class VoiceTranslateController extends BasePlayerController {
         mArmed = false;
         Utils.removeCallbacks(mAutoTranslateRetryRunnable);
         Utils.removeCallbacks(mProgressTickRunnable);
+        Utils.removeCallbacks(mResetErrorButtonRunnable);
         cancelTranslationJob();
         releaseTranslationPlayer();
         restoreMainVolume();
@@ -643,6 +651,12 @@ public class VoiceTranslateController extends BasePlayerController {
         MessageHelpers.showMessage(getContext(), msgResId);
     }
 
+    private void showBriefErrorButtonState() {
+        Utils.removeCallbacks(mResetErrorButtonRunnable);
+        updateVoiceButton(BTN_ERROR);
+        Utils.postDelayed(mResetErrorButtonRunnable, 3000L);
+    }
+
     private void onTranslationPlaybackError(Exception e) {
         Log.e(TAG, "Translation playback error: %s", e != null ? e.getMessage() : "unknown");
         if (mState == STATE_OFF) {
@@ -651,6 +665,7 @@ public class VoiceTranslateController extends BasePlayerController {
         boolean wasUserArmed = mUserArmed;
         disarmQuiet();
         if (wasUserArmed) {
+            showBriefErrorButtonState();
             MessageHelpers.showMessage(getContext(), R.string.vot_error_playback);
         }
     }
@@ -664,6 +679,7 @@ public class VoiceTranslateController extends BasePlayerController {
         boolean wasUserArmed = mUserArmed;
         disarmQuiet();
         if (wasUserArmed) {
+            showBriefErrorButtonState();
             MessageHelpers.showMessage(getContext(), R.string.vot_error_timeout);
         }
     }
@@ -689,6 +705,9 @@ public class VoiceTranslateController extends BasePlayerController {
             }
         }
         disarmQuiet();
+        if (wasUserArmed) {
+            showBriefErrorButtonState();
+        }
     }
 
     private void setState(int state) {

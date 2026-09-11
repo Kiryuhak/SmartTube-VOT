@@ -15,6 +15,7 @@ public class VoiceTranslateAction extends MultiAction {
     public static final int INDEX_OFF = 0;
     public static final int INDEX_PENDING = 1;
     public static final int INDEX_ON = 2;
+    public static final int INDEX_ERROR = 3;
 
     private final Context mContext;
     private final String mBaseLabel;
@@ -26,22 +27,31 @@ public class VoiceTranslateAction extends MultiAction {
         mBaseLabel = context.getString(com.liskovsoft.smartyoutubetv2.common.R.string.action_voice_translate);
 
         int highlightColor = ActionHelpers.getIconHighlightColor(context);
+        int orangeAccent = 0xFFFFA726; // Material Orange / Amber accent for WAITING state
+        int errorColor = 0xFFFF5252;   // Red accent for ERROR state
+
         BitmapDrawable offDrawable = ActionHelpers.getBitmapDrawable(context, R.drawable.action_voice_translate);
-        BitmapDrawable pendingDrawable = ActionHelpers.getBitmapDrawable(context, R.drawable.action_voice_translate_pending);
+        BitmapDrawable rawPending = ActionHelpers.getBitmapDrawable(context, R.drawable.action_voice_translate_pending);
+        BitmapDrawable pendingDrawable = rawPending == null ? null
+                : ActionHelpers.createDrawable(context, rawPending, orangeAccent);
         BitmapDrawable onDrawable = offDrawable == null ? null
                 : new BitmapDrawable(context.getResources(),
                 ActionHelpers.createBitmap(offDrawable.getBitmap(), highlightColor));
+        BitmapDrawable errorDrawable = offDrawable == null ? null
+                : ActionHelpers.createDrawable(context, offDrawable, errorColor);
 
-        Drawable[] drawables = new Drawable[3];
+        Drawable[] drawables = new Drawable[4];
         drawables[INDEX_OFF] = offDrawable;
         drawables[INDEX_PENDING] = pendingDrawable;
         drawables[INDEX_ON] = onDrawable;
+        drawables[INDEX_ERROR] = errorDrawable;
         setDrawables(drawables);
 
-        mLabels = new String[3];
+        mLabels = new String[4];
         mLabels[INDEX_OFF] = mBaseLabel;
         mLabels[INDEX_PENDING] = mBaseLabel;
         mLabels[INDEX_ON] = mBaseLabel;
+        mLabels[INDEX_ERROR] = mBaseLabel;
         setLabels(mLabels);
         setIndex(INDEX_OFF);
     }
@@ -62,6 +72,7 @@ public class VoiceTranslateAction extends MultiAction {
         mLabels[INDEX_OFF] = mBaseLabel;
         mLabels[INDEX_PENDING] = mBaseLabel;
         mLabels[INDEX_ON] = mBaseLabel;
+        mLabels[INDEX_ERROR] = mBaseLabel;
         setLabels(mLabels);
     }
 }

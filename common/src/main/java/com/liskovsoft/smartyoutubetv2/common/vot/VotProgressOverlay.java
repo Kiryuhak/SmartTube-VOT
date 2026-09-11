@@ -204,6 +204,7 @@ public class VotProgressOverlay {
 
             mOverlayView.setFocusable(false);
             mOverlayView.setFocusableInTouchMode(false);
+            mOverlayView.setClickable(false);
 
             FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT,
