@@ -15,9 +15,11 @@ import com.liskovsoft.smartyoutubetv2.common.vot.VotAudioTrackHelper;
 import com.liskovsoft.smartyoutubetv2.common.vot.VotAudioTrackHelper.TrackInfo;
 import com.liskovsoft.smartyoutubetv2.common.vot.VotClient;
 import com.liskovsoft.smartyoutubetv2.common.vot.VotProgress;
+import com.liskovsoft.smartyoutubetv2.common.vot.VotProgressOverlay;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.disposables.Disposable;
@@ -32,6 +34,7 @@ public class VoiceTranslateController extends BasePlayerController {
     public static final int BTN_OFF = 0;
     public static final int BTN_PENDING = 1;
     public static final int BTN_ON = 2;
+    public static final int BTN_ERROR = 3;
 
     private static final int STATE_OFF = 0;
     private static final int STATE_PENDING = 1;
@@ -41,13 +44,15 @@ public class VoiceTranslateController extends BasePlayerController {
     private static final long SYNC_THRESHOLD_MS = 800;
     private static final long AUTO_TRANSLATE_RETRY_MS = 1000;
     private static final int AUTO_TRANSLATE_MAX_RETRIES = 20;
-    private static final long HARD_TIMEOUT_MS = 5 * 60 * 1000L;
-    private static final long ETA_GRACE_PERIOD_MS = 60 * 1000L;
+    private static final long MAX_TOTAL_WAIT_MS = 25 * 60 * 1000L;
+    private static final long PENDING_HEARTBEAT_TIMEOUT_MS = 90 * 1000L;
+    private static final long PROGRESS_TICK_INTERVAL_MS = 1000L;
 
     private VotData mVotData;
     private VotClient mVotClient;
     private TranslationAudioPlayer mTranslationPlayer;
     private Disposable mTranslationDisposable;
+    private VotProgressOverlay mProgressOverlay;
     private float mSavedMainVolume = 1f;
     private boolean mIsAudioDucked;
     private FormatItem mSavedAudioFormat;
@@ -59,6 +64,10 @@ public class VoiceTranslateController extends BasePlayerController {
     private String mPendingVideoUrl;
     private String mCurrentVideoId;
     private int mAutoTranslateRetryCount;
+
+    private long mRequestStartTimestamp;
+    private long mExpectedReadyTimestamp;
+    private long mLastBackendPendingTimestamp;
 
     private final Runnable mSyncRunnable = new Runnable() {
         @Override
@@ -77,12 +86,67 @@ public class VoiceTranslateController extends BasePlayerController {
         }
     };
 
-    private final Runnable mPendingTimeoutRunnable = new Runnable() {
-        @Override
-        public void run() {
-            onTranslationTimeout();
+    private final Runnable mResetErrorButtonRunnable = () -> {
+        if (mState == STATE_OFF) {
+            updateVoiceButton(BTN_OFF);
         }
     };
+
+    private final Runnable mProgressTickRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (mState != STATE_PENDING) {
+                return;
+            }
+            long now = System.currentTimeMillis();
+            long elapsedSec = Math.max(0, (now - mRequestStartTimestamp) / 1000);
+
+            if (mRequestStartTimestamp > 0 && (now - mRequestStartTimestamp > MAX_TOTAL_WAIT_MS)) {
+                Log.w(TAG, "VOT timeout: exceeded absolute maximum wait (%d ms) for video=%s", MAX_TOTAL_WAIT_MS, mCurrentVideoId);
+                onTranslationTimeout();
+                return;
+            }
+
+            if (mLastBackendPendingTimestamp > 0 && (now - mLastBackendPendingTimestamp > PENDING_HEARTBEAT_TIMEOUT_MS)) {
+                Log.w(TAG, "VOT timeout: backend unresponsive for %d ms (video=%s)", now - mLastBackendPendingTimestamp, mCurrentVideoId);
+                onTranslationTimeout();
+                return;
+            }
+
+            long remainingSec = 0;
+            if (mExpectedReadyTimestamp > now) {
+                remainingSec = (mExpectedReadyTimestamp - now + 999) / 1000;
+            }
+
+            if (mUserArmed && progressOverlay() != null) {
+                if (remainingSec > 0) {
+                    progressOverlay().showWaitingWithEta(getActivity(), formatMmSs(remainingSec));
+                } else {
+                    Log.d(TAG, "VOT ETA expired, polling continues: elapsed=%ds, video=%s", elapsedSec, mCurrentVideoId);
+                    progressOverlay().showStillWaiting(getActivity(), formatMmSs(elapsedSec));
+                }
+            }
+
+            if (getPlayer() != null) {
+                getPlayer().updateVoiceTranslatePendingEta((int) remainingSec);
+            }
+
+            Utils.postDelayed(mProgressTickRunnable, PROGRESS_TICK_INTERVAL_MS);
+        }
+    };
+
+    private VotProgressOverlay progressOverlay() {
+        if (mProgressOverlay == null && getContext() != null) {
+            mProgressOverlay = new VotProgressOverlay(getContext());
+        }
+        return mProgressOverlay;
+    }
+
+    private static String formatMmSs(long totalSec) {
+        long minutes = totalSec / 60;
+        long seconds = totalSec % 60;
+        return String.format(Locale.US, "%02d:%02d", minutes, seconds);
+    }
 
     public VoiceTranslateController() {
     }
@@ -103,13 +167,17 @@ public class VoiceTranslateController extends BasePlayerController {
 
     @Override
     public void onNewVideo(Video item) {
+        Log.d(TAG, "VOT reset reason: new video (%s)", item != null ? item.videoId : "null");
         Utils.removeCallbacks(mAutoTranslateRetryRunnable);
-        Utils.removeCallbacks(mPendingTimeoutRunnable);
+        Utils.removeCallbacks(mProgressTickRunnable);
         mAutoTranslateRetryCount = 0;
         cancelTranslationJob();
         releaseTranslationPlayer();
         restoreMainVolume();
         restoreSavedAudioFormat();
+        if (mProgressOverlay != null) {
+            mProgressOverlay.dismissImmediately();
+        }
         mPendingToastShown = false;
         mPendingVideoUrl = null;
         mCurrentVideoId = item != null ? item.videoId : null;
@@ -171,7 +239,21 @@ public class VoiceTranslateController extends BasePlayerController {
 
     @Override
     public void onEngineReleased() {
+        Log.d(TAG, "VOT reset reason: engine released");
+        if (mProgressOverlay != null) {
+            mProgressOverlay.destroy();
+            mProgressOverlay = null;
+        }
         disarm();
+    }
+
+    @Override
+    public void onViewDestroyed() {
+        Log.d(TAG, "VOT reset reason: view destroyed");
+        if (mProgressOverlay != null) {
+            mProgressOverlay.destroy();
+            mProgressOverlay = null;
+        }
     }
 
     @Override
@@ -209,7 +291,9 @@ public class VoiceTranslateController extends BasePlayerController {
         }
         mUserArmed = true;
         mArmed = true;
-        MessageHelpers.showMessage(getContext(), R.string.vot_preparing);
+        if (progressOverlay() != null) {
+            progressOverlay().showPreparing(getActivity());
+        }
         startYandexTranslation();
     }
 
@@ -337,12 +421,16 @@ public class VoiceTranslateController extends BasePlayerController {
         cancelTranslationJob();
         mPendingToastShown = false;
         mPendingVideoUrl = videoUrl;
+        mRequestStartTimestamp = System.currentTimeMillis();
+        mLastBackendPendingTimestamp = System.currentTimeMillis();
+        mExpectedReadyTimestamp = 0;
         setState(STATE_PENDING);
 
-        Utils.removeCallbacks(mPendingTimeoutRunnable);
-        Utils.postDelayed(mPendingTimeoutRunnable, HARD_TIMEOUT_MS);
+        Utils.removeCallbacks(mProgressTickRunnable);
+        Utils.postDelayed(mProgressTickRunnable, PROGRESS_TICK_INTERVAL_MS);
 
         long durationSec = Math.max(1, getPlayer().getDurationMs() / 1000);
+        Log.d(TAG, "VOT request started: url=%s, duration=%ds, userArmed=%b", videoUrl, durationSec, mUserArmed);
         mTranslationDisposable = votClient().observeTranslation(videoUrl, durationSec)
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
@@ -410,44 +498,47 @@ public class VoiceTranslateController extends BasePlayerController {
             return;
         }
 
+        mLastBackendPendingTimestamp = System.currentTimeMillis();
+
         switch (progress.type) {
             case VotProgress.TYPE_WAITING:
                 mPendingEtaSec = progress.remainingTimeSec;
-                setState(STATE_PENDING);
-                if (mUserArmed && !mPendingToastShown) {
-                    mPendingToastShown = true;
-                    if (progress.remainingTimeSec > 0) {
-                        int min = Math.max(1, (progress.remainingTimeSec + 59) / 60);
-                        MessageHelpers.showMessage(getContext(),
-                                getContext().getString(R.string.vot_pending_waiting, min));
-                    } else {
-                        MessageHelpers.showMessage(getContext(), R.string.vot_pending_long);
-                    }
-                }
-                long timeoutDelayMs = HARD_TIMEOUT_MS;
                 if (progress.remainingTimeSec > 0) {
-                    timeoutDelayMs = Math.max(HARD_TIMEOUT_MS, (progress.remainingTimeSec * 1000L) + ETA_GRACE_PERIOD_MS);
+                    mExpectedReadyTimestamp = System.currentTimeMillis() + (progress.remainingTimeSec * 1000L);
+                    Log.d(TAG, "VOT ETA received: %ds, expected ready at +%ds", progress.remainingTimeSec, progress.remainingTimeSec);
+                } else {
+                    Log.d(TAG, "VOT pending (status=%d, remainingTime=%d)", progress.status, progress.remainingTimeSec);
                 }
-                Utils.removeCallbacks(mPendingTimeoutRunnable);
-                Utils.postDelayed(mPendingTimeoutRunnable, timeoutDelayMs);
+                setState(STATE_PENDING);
+                mProgressTickRunnable.run();
                 break;
             case VotProgress.TYPE_READY:
-                Utils.removeCallbacks(mPendingTimeoutRunnable);
+                Log.d(TAG, "VOT translation ready");
+                Utils.removeCallbacks(mProgressTickRunnable);
+                if (mUserArmed && progressOverlay() != null) {
+                    progressOverlay().showReady(getActivity());
+                }
                 if (progress.audioUrl != null) {
                     playTranslation(progress.audioUrl);
-                    if (mUserArmed) {
-                        MessageHelpers.showMessage(getContext(), R.string.vot_ready);
-                    }
                 }
                 break;
             case VotProgress.TYPE_FAILED:
-                Utils.removeCallbacks(mPendingTimeoutRunnable);
+                Log.e(TAG, "VOT translation failed: %s", progress.message);
+                Utils.removeCallbacks(mProgressTickRunnable);
+                if (mUserArmed && progressOverlay() != null) {
+                    progressOverlay().showError(getActivity());
+                }
                 handleTranslationError(progress.message, false);
                 break;
         }
     }
 
     private void onVotError(Throwable e) {
+        Log.e(TAG, "VOT error callback: %s", e != null ? e.getMessage() : "unknown");
+        Utils.removeCallbacks(mProgressTickRunnable);
+        if (mUserArmed && progressOverlay() != null) {
+            progressOverlay().showError(getActivity());
+        }
         String msg = e != null ? e.getMessage() : null;
         boolean isNetwork = e instanceof IOException;
         handleTranslationError(msg, isNetwork);
@@ -518,7 +609,7 @@ public class VoiceTranslateController extends BasePlayerController {
     }
 
     private void cancelTranslationJob() {
-        Utils.removeCallbacks(mPendingTimeoutRunnable);
+        Utils.removeCallbacks(mProgressTickRunnable);
         if (mTranslationDisposable != null && !mTranslationDisposable.isDisposed()) {
             mTranslationDisposable.dispose();
         }
@@ -538,14 +629,19 @@ public class VoiceTranslateController extends BasePlayerController {
     }
 
     private void disarmQuiet() {
+        Log.d(TAG, "VOT reset reason: disarmQuiet");
         mUserArmed = false;
         mArmed = false;
         Utils.removeCallbacks(mAutoTranslateRetryRunnable);
-        Utils.removeCallbacks(mPendingTimeoutRunnable);
+        Utils.removeCallbacks(mProgressTickRunnable);
+        Utils.removeCallbacks(mResetErrorButtonRunnable);
         cancelTranslationJob();
         releaseTranslationPlayer();
         restoreMainVolume();
         restoreSavedAudioFormat();
+        if (mProgressOverlay != null) {
+            mProgressOverlay.dismissImmediately();
+        }
         setState(STATE_OFF);
         mPendingVideoUrl = null;
     }
@@ -553,6 +649,12 @@ public class VoiceTranslateController extends BasePlayerController {
     private void disarmWithMessage(int msgResId) {
         disarm();
         MessageHelpers.showMessage(getContext(), msgResId);
+    }
+
+    private void showBriefErrorButtonState() {
+        Utils.removeCallbacks(mResetErrorButtonRunnable);
+        updateVoiceButton(BTN_ERROR);
+        Utils.postDelayed(mResetErrorButtonRunnable, 3000L);
     }
 
     private void onTranslationPlaybackError(Exception e) {
@@ -563,22 +665,28 @@ public class VoiceTranslateController extends BasePlayerController {
         boolean wasUserArmed = mUserArmed;
         disarmQuiet();
         if (wasUserArmed) {
+            showBriefErrorButtonState();
             MessageHelpers.showMessage(getContext(), R.string.vot_error_playback);
         }
     }
 
     private void onTranslationTimeout() {
         Log.w(TAG, "VOT translation timeout (video=%s)", mCurrentVideoId);
+        Utils.removeCallbacks(mProgressTickRunnable);
+        if (mUserArmed && progressOverlay() != null) {
+            progressOverlay().showTimeout(getActivity());
+        }
         boolean wasUserArmed = mUserArmed;
         disarmQuiet();
         if (wasUserArmed) {
+            showBriefErrorButtonState();
             MessageHelpers.showMessage(getContext(), R.string.vot_error_timeout);
         }
     }
 
     private void handleTranslationError(String message, boolean isNetworkError) {
         Log.e(TAG, "Translation error: %s (network=%b)", message, isNetworkError);
-        Utils.removeCallbacks(mPendingTimeoutRunnable);
+        Utils.removeCallbacks(mProgressTickRunnable);
         boolean wasUserArmed = mUserArmed;
         boolean isAuthRequired = message != null && message.contains("auth required");
 
@@ -597,6 +705,9 @@ public class VoiceTranslateController extends BasePlayerController {
             }
         }
         disarmQuiet();
+        if (wasUserArmed) {
+            showBriefErrorButtonState();
+        }
     }
 
     private void setState(int state) {

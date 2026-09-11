@@ -815,4 +815,10 @@
     <string name="vot_error_network" translatable="false"></string>
     <string name="vot_error_playback" translatable="false"></string>
     <string name="vot_unknown_lang_manual" translatable="false"></string>
+    <string name="vot_progress_preparing" translatable="false"></string>
+    <string name="vot_progress_waiting_eta" translatable="false"></string>
+    <string name="vot_progress_still_waiting" translatable="false"></string>
+    <string name="vot_progress_ready" translatable="false"></string>
+    <string name="vot_progress_error" translatable="false"></string>
+    <string name="vot_progress_timeout" translatable="false"></string>
 </resources>

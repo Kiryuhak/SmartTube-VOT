@@ -554,6 +554,16 @@ public class AppDialogUtil {
                     callback.run();
                 },
                 votData.isPreferYoutubeAutoDub()));
+        if (votData.hasOAuthToken()) {
+            toggles.add(UiOptionItem.from(
+                    context.getString(R.string.vot_lively_voice),
+                    context.getString(R.string.vot_lively_voice_desc),
+                    optionItem -> {
+                        votData.setLivelyVoiceEnabled(optionItem.isSelected());
+                        callback.run();
+                    },
+                    votData.isLivelyVoiceEnabled()));
+        }
         OptionCategory original = createVotOriginalVolumeCategory(context, callback);
         OptionCategory translation = createVotTranslationVolumeCategory(context, callback);
         String title = context.getString(R.string.vot_mix_menu_title);

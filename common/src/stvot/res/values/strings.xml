@@ -26,4 +26,12 @@
     <string name="vot_error_network">Network error while fetching translation</string>
     <string name="vot_error_playback">Failed to play translation</string>
     <string name="vot_unknown_lang_manual">Audio track language unknown. Start translation manually.</string>
+
+    <!-- VOT Progress Indicator -->
+    <string name="vot_progress_preparing">Preparing translation…</string>
+    <string name="vot_progress_waiting_eta">Translation: ~%s</string>
+    <string name="vot_progress_still_waiting">Translation is still processing… %s</string>
+    <string name="vot_progress_ready">Translation ready</string>
+    <string name="vot_progress_error">Failed to prepare translation</string>
+    <string name="vot_progress_timeout">Translation was not prepared</string>
 </resources>

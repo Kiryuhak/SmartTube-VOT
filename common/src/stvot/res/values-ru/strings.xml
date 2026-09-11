@@ -28,4 +28,12 @@
     <string name="vot_unknown_lang_manual">Язык аудиодорожки не определён. Запустите перевод вручную.</string>
     <string name="vot_skip_russian">Русская аудиодорожка — перевод не требуется</string>
     <string name="vot_lively_voice_desc">Высокое качество и естественная интонация перевода (требуется Яндекс ID).</string>
+
+    <!-- VOT Progress Indicator -->
+    <string name="vot_progress_preparing">Подготовка перевода…</string>
+    <string name="vot_progress_waiting_eta">Перевод: ~%s</string>
+    <string name="vot_progress_still_waiting">Перевод всё ещё готовится… %s</string>
+    <string name="vot_progress_ready">Перевод готов</string>
+    <string name="vot_progress_error">Не удалось подготовить перевод</string>
+    <string name="vot_progress_timeout">Перевод не был подготовлен</string>
 </resources>
