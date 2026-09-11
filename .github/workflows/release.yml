@@ -139,10 +139,10 @@ jobs:
 
           prev_code = None
 
-          # Шаг 1: Поиск smarttube_vot.json в ассетах предыдущего релиза
+          # Шаг 1: Поиск smarttube_vox.json или smarttube_vot.json в ассетах предыдущего релиза
           json_url = None
           for asset in prev_release.get('assets', []):
-              if asset.get('name') == 'smarttube_vot.json':
+              if asset.get('name') in ('smarttube_vox.json', 'smarttube_vot.json'):
                   json_url = asset.get('browser_download_url')
                   break
 
@@ -154,10 +154,10 @@ jobs:
                       for key, val in jdata.items():
                           if key != 'package' and isinstance(val, dict) and 'versionCode' in val:
                               prev_code = int(val['versionCode'])
-                              print(f'Извлечён предыдущий versionCode из smarttube_vot.json: {prev_code}')
+                              print(f'Извлечён предыдущий versionCode из {asset.get("name")}: {prev_code}')
                               break
               except Exception as e:
-                  print(f'Предупреждение при чтении smarttube_vot.json: {e}')
+                  print(f'Предупреждение при чтении файла обновления: {e}')
 
           # Шаг 2: Fallback к git-метаданным предыдущего тега с учётом его базовой версии
           if prev_code is None:
@@ -277,9 +277,29 @@ jobs:
           fi
           echo "Цифровая подпись успешно верифицирована."
 
-          # Подготовка стабильного имени ассета для updater
+          # Подготовка основных и совместимых ассетов для release и updater
+          cp "$UNIVERSAL_APK" smarttube_vox.apk
+          cp "$UNIVERSAL_APK" smarttube_vox-universal.apk
           cp "$UNIVERSAL_APK" smarttube_vot.apk
-          echo "Создан стабильный ассет для updater: smarttube_vot.apk"
+          echo "Созданы основные и совместимые ассеты для updater: smarttube_vox.apk, smarttube_vot.apk, smarttube_vox-universal.apk"
+
+          ARM64_APK=$(find "$OUTPUT_DIR" -name "*arm64-v8a*.apk" | head -n 1)
+          if [ -n "$ARM64_APK" ] && [ -f "$ARM64_APK" ]; then
+            cp "$ARM64_APK" smarttube_vox-arm64-v8a.apk
+            echo "Создан ассет: smarttube_vox-arm64-v8a.apk"
+          fi
+
+          ARMEABI_APK=$(find "$OUTPUT_DIR" -name "*armeabi-v7a*.apk" | head -n 1)
+          if [ -n "$ARMEABI_APK" ] && [ -f "$ARMEABI_APK" ]; then
+            cp "$ARMEABI_APK" smarttube_vox-armeabi-v7a.apk
+            echo "Создан ассет: smarttube_vox-armeabi-v7a.apk"
+          fi
+
+          X86_APK=$(find "$OUTPUT_DIR" -name "*x86*.apk" | head -n 1)
+          if [ -n "$X86_APK" ] && [ -f "$X86_APK" ]; then
+            cp "$X86_APK" smarttube_vox-x86.apk
+            echo "Создан ассет: smarttube_vox-x86.apk"
+          fi
 
       - name: Extract Release Notes and Generate Update JSON
         env:
@@ -304,7 +324,7 @@ jobs:
           with open('release_notes.md', 'w', encoding='utf-8') as f:
               f.write(section)
 
-          release_title = f'SmartTube VOT v{version}'
+          release_title = f'SmartTube VOX v{version}'
           try:
               header_line = re.search(rf'## \[{re.escape(version)}\]([^\n]*)', content)
               raw_suffix = header_line.group(1).strip() if header_line else ''
@@ -313,10 +333,12 @@ jobs:
               is_date = bool(re.match(r'^\d{4}-\d{2}-\d{2}$', codename))
               base_ver = version.split('-')[0]
               if codename and not is_date:
-                  release_title = f'SmartTube VOT {base_ver} — {codename}'
+                  release_title = f'SmartTube VOX {base_ver} — {codename}'
+              else:
+                  release_title = f'SmartTube VOX v{version}'
           except Exception as e:
               print(f'::warning::Не удалось извлечь кодовое имя релиза ({e}), используется fallback', file=sys.stderr)
-              release_title = f'SmartTube VOT v{version}'
+              release_title = f'SmartTube VOX v{version}'
 
           print(f'Сформирован заголовок релиза: {release_title}')
 
@@ -331,7 +353,28 @@ jobs:
               if line.strip().startswith(('-', '*'))
           ]
 
-          json_data = {
+          # 1. Основной манифест обновления SmartTube VOX
+          json_vox = {
+              'package': {
+                  'downloadUrl': f'https://github.com/{sys.argv[1]}/releases/latest/download/smarttube_vox.apk'
+              },
+              version: {
+                  'versionCode': int(sys.argv[2]),
+                  'changelog': [
+                      'Voice-over translation via Yandex VOT for Android TV',
+                      'Yandex OAuth and Lively Voice support',
+                      'Dedicated stvot flavor with isolated package ID',
+                      'Adaptive TV launcher icon and banner',
+                      'In-app updater support'
+                  ],
+                  'changelog_ru': ru_items
+              }
+          }
+          with open('smarttube_vox.json', 'w', encoding='utf-8') as f:
+              json.dump(json_vox, f, ensure_ascii=False, indent=2)
+
+          # 2. Манифест обратной совместимости для ранее установленных версий SmartTube VOT (Echo)
+          json_vot = {
               'package': {
                   'downloadUrl': f'https://github.com/{sys.argv[1]}/releases/latest/download/smarttube_vot.apk'
               },
@@ -347,20 +390,26 @@ jobs:
                   'changelog_ru': ru_items
               }
           }
-
           with open('smarttube_vot.json', 'w', encoding='utf-8') as f:
-              json.dump(json_data, f, ensure_ascii=False, indent=2)
+              json.dump(json_vot, f, ensure_ascii=False, indent=2)
 
-          print('smarttube_vot.json успешно сформирован и валидирован.')
+          print('smarttube_vox.json и smarttube_vot.json успешно сформированы и валидированы.')
           " "$REPO" "$EXPECTED_CODE"
 
-          # Дополнительная валидация сформированного JSON
+          # Дополнительная валидация сформированных JSON
+          jq . smarttube_vox.json
           jq . smarttube_vot.json
 
-          # Проверка, что downloadUrl указывает на стабильное имя smarttube_vot.apk
-          DL_CHECK=$(jq -r '.package.downloadUrl' smarttube_vot.json)
-          if [[ ! "$DL_CHECK" =~ /smarttube_vot\.apk$ ]]; then
-            echo "::error::downloadUrl в JSON ($DL_CHECK) не указывает на smarttube_vot.apk!"
+          # Проверка корректности downloadUrl
+          DL_VOX=$(jq -r '.package.downloadUrl' smarttube_vox.json)
+          if [[ ! "$DL_VOX" =~ /smarttube_vox\.apk$ ]]; then
+            echo "::error::downloadUrl в smarttube_vox.json ($DL_VOX) не указывает на smarttube_vox.apk!"
+            exit 1
+          fi
+
+          DL_VOT=$(jq -r '.package.downloadUrl' smarttube_vot.json)
+          if [[ ! "$DL_VOT" =~ /smarttube_vot\.apk$ ]]; then
+            echo "::error::downloadUrl в smarttube_vot.json ($DL_VOT) не указывает на smarttube_vot.apk!"
             exit 1
           fi
 
@@ -372,10 +421,13 @@ jobs:
         run: |
           echo "Публикация GitHub Release для тега $TAG..."
           gh release create "$TAG" \
-            --title "${RELEASE_TITLE:-SmartTube VOT v$VERSION_NAME}" \
+            --title "${RELEASE_TITLE:-SmartTube VOX v$VERSION_NAME}" \
             --notes-file release_notes.md \
+            smarttube_vox.apk \
             smarttube_vot.apk \
+            smarttube_vox-*.apk \
             smarttubetv/build/outputs/apk/stvot/release/SmartTube_vot_${VERSION_NAME}_*.apk \
+            smarttube_vox.json \
             smarttube_vot.json
 
           echo "Релиз успешно опубликован со всеми ассетами и метаданными обновления."

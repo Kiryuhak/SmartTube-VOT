@@ -51,6 +51,10 @@ public class VotData extends SharedPreferencesBase {
         setLivelyVoiceEnabled(false);
     }
 
+    public void logoutYandex() {
+        clearOAuthToken();
+    }
+
     public boolean hasOAuthToken() {
         return !TextUtils.isEmpty(getOAuthToken());
     }

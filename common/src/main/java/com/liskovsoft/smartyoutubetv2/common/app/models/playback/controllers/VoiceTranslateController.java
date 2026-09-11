@@ -26,7 +26,7 @@ import io.reactivex.disposables.Disposable;
  * Yandex voice-over translation (EN→RU) alongside the main player.
  */
 public class VoiceTranslateController extends BasePlayerController {
-    private static final String TAG = VoiceTranslateController.class.getSimpleName();
+    private static final String TAG = "SmartTubeVOT";
     private static final int ACTION_VOICE_TRANSLATE = R.id.action_voice_translate;
 
     public static final int BTN_OFF = 0;
@@ -49,6 +49,7 @@ public class VoiceTranslateController extends BasePlayerController {
     private TranslationAudioPlayer mTranslationPlayer;
     private Disposable mTranslationDisposable;
     private float mSavedMainVolume = 1f;
+    private boolean mIsAudioDucked;
     private FormatItem mSavedAudioFormat;
     private boolean mUserArmed;
     private boolean mArmed;
@@ -181,7 +182,9 @@ public class VoiceTranslateController extends BasePlayerController {
         if (buttonState == BTN_OFF) {
             armAndStart();
         } else {
+            Log.d(TAG, "Trigger: manual stop");
             disarm();
+            MessageHelpers.showMessage(getContext(), R.string.vot_disabled);
         }
     }
 
@@ -193,6 +196,7 @@ public class VoiceTranslateController extends BasePlayerController {
     }
 
     private void armAndStart() {
+        Log.d(TAG, "Trigger: manual start (Yandex authorized=%b)", votData().hasOAuthToken());
         if (votData().isPreferYoutubeAutoDub()) {
             MessageHelpers.showMessage(getContext(), R.string.vot_disable_google_for_yandex);
             return;
@@ -200,11 +204,12 @@ public class VoiceTranslateController extends BasePlayerController {
         TrackInfo info = resolveAudioInfo();
         if (VotAudioTrackHelper.isRussianOriginal(info)
                 || (info != null && VotAudioTrackHelper.isRussianLang(info.langCode))) {
-            MessageHelpers.showMessage(getContext(), R.string.vot_already_russian);
+            MessageHelpers.showMessage(getContext(), R.string.vot_skip_russian);
             return;
         }
         mUserArmed = true;
         mArmed = true;
+        MessageHelpers.showMessage(getContext(), R.string.vot_preparing);
         startYandexTranslation();
     }
 
@@ -414,7 +419,7 @@ public class VoiceTranslateController extends BasePlayerController {
                     if (progress.remainingTimeSec > 0) {
                         int min = Math.max(1, (progress.remainingTimeSec + 59) / 60);
                         MessageHelpers.showMessage(getContext(),
-                                getContext().getString(R.string.vot_pending_eta, min));
+                                getContext().getString(R.string.vot_pending_waiting, min));
                     } else {
                         MessageHelpers.showMessage(getContext(), R.string.vot_pending_long);
                     }
@@ -430,23 +435,22 @@ public class VoiceTranslateController extends BasePlayerController {
                 Utils.removeCallbacks(mPendingTimeoutRunnable);
                 if (progress.audioUrl != null) {
                     playTranslation(progress.audioUrl);
-                    MessageHelpers.showMessage(getContext(), R.string.vot_enabled);
+                    if (mUserArmed) {
+                        MessageHelpers.showMessage(getContext(), R.string.vot_ready);
+                    }
                 }
                 break;
             case VotProgress.TYPE_FAILED:
                 Utils.removeCallbacks(mPendingTimeoutRunnable);
-                handleTranslationError(progress.message);
+                handleTranslationError(progress.message, false);
                 break;
         }
     }
 
     private void onVotError(Throwable e) {
-        String msg = e.getMessage();
-        if (e instanceof IOException) {
-            handleTranslationError(msg);
-        } else {
-            handleTranslationError(msg != null ? msg : getContext().getString(R.string.vot_error_generic));
-        }
+        String msg = e != null ? e.getMessage() : null;
+        boolean isNetwork = e instanceof IOException;
+        handleTranslationError(msg, isNetwork);
     }
 
     private void playTranslation(String audioUrl) {
@@ -459,6 +463,9 @@ public class VoiceTranslateController extends BasePlayerController {
             if (getPlayer() != null && mTranslationPlayer != null) {
                 mTranslationPlayer.seekTo(getPlayer().getPositionMs());
             }
+        });
+        mTranslationPlayer.setOnErrorListener(e -> {
+            Utils.post(() -> onTranslationPlaybackError(e));
         });
         float speed = getPlayer().getSpeed();
         mTranslationPlayer.play(
@@ -491,20 +498,22 @@ public class VoiceTranslateController extends BasePlayerController {
 		
 		if (mTranslationPlayer != null) {
 			mTranslationPlayer.setVolume(votData().getTranslationVolumeMultiplier());
+        }
     }
-}
 
     private void duckMainAudio() {
-        if (getPlayer() == null) {
+        if (getPlayer() == null || mIsAudioDucked) {
             return;
         }
         mSavedMainVolume = getPlayer().getVolume();
         getPlayer().setVolume(votData().getOriginalVolumeMultiplier());
+        mIsAudioDucked = true;
     }
 
     private void restoreMainVolume() {
-        if (getPlayer() != null) {
+        if (getPlayer() != null && mIsAudioDucked) {
             getPlayer().setVolume(mSavedMainVolume);
+            mIsAudioDucked = false;
         }
     }
 
@@ -525,16 +534,7 @@ public class VoiceTranslateController extends BasePlayerController {
     }
 
     private void disarm() {
-        mUserArmed = false;
-        mArmed = false;
-        Utils.removeCallbacks(mAutoTranslateRetryRunnable);
-        Utils.removeCallbacks(mPendingTimeoutRunnable);
-        cancelTranslationJob();
-        releaseTranslationPlayer();
-        restoreMainVolume();
-        restoreSavedAudioFormat();
-        setState(STATE_OFF);
-        mPendingVideoUrl = null;
+        disarmQuiet();
     }
 
     private void disarmQuiet() {
@@ -555,26 +555,54 @@ public class VoiceTranslateController extends BasePlayerController {
         MessageHelpers.showMessage(getContext(), msgResId);
     }
 
-    private void onTranslationTimeout() {
-        Log.w(TAG, "VOT translation timeout (video=%s)", mCurrentVideoId);
-        if (mUserArmed) {
-            MessageHelpers.showMessage(getContext(), R.string.vot_error_generic);
+    private void onTranslationPlaybackError(Exception e) {
+        Log.e(TAG, "Translation playback error: %s", e != null ? e.getMessage() : "unknown");
+        if (mState == STATE_OFF) {
+            return;
         }
+        boolean wasUserArmed = mUserArmed;
         disarmQuiet();
+        if (wasUserArmed) {
+            MessageHelpers.showMessage(getContext(), R.string.vot_error_playback);
+        }
     }
 
-    private void handleTranslationError(String message) {
-        Log.e(TAG, "Translation error: %s", message);
+    private void onTranslationTimeout() {
+        Log.w(TAG, "VOT translation timeout (video=%s)", mCurrentVideoId);
+        boolean wasUserArmed = mUserArmed;
+        disarmQuiet();
+        if (wasUserArmed) {
+            MessageHelpers.showMessage(getContext(), R.string.vot_error_timeout);
+        }
+    }
+
+    private void handleTranslationError(String message, boolean isNetworkError) {
+        Log.e(TAG, "Translation error: %s (network=%b)", message, isNetworkError);
         Utils.removeCallbacks(mPendingTimeoutRunnable);
-        if (message != null && message.contains("auth required")) {
-            MessageHelpers.showMessage(getContext(), R.string.vot_error_auth_required);
-        } else if (mUserArmed) {
-            MessageHelpers.showMessage(getContext(), R.string.vot_error_generic);
+        boolean wasUserArmed = mUserArmed;
+        boolean isAuthRequired = message != null && message.contains("auth required");
+
+        if (isAuthRequired) {
+            Log.w(TAG, "Yandex session required/invalid, clearing token and disabling lively voice");
+            votData().clearOAuthToken();
+            votData().setLivelyVoiceEnabled(false);
+            if (wasUserArmed) {
+                MessageHelpers.showMessage(getContext(), R.string.vot_error_auth_required);
+            }
+        } else if (wasUserArmed) {
+            if (isNetworkError) {
+                MessageHelpers.showMessage(getContext(), R.string.vot_error_network);
+            } else {
+                MessageHelpers.showMessage(getContext(), R.string.vot_error_generic);
+            }
         }
         disarmQuiet();
     }
 
     private void setState(int state) {
+        if (mState != state) {
+            Log.d(TAG, "State transition: " + stateToString(mState) + " -> " + stateToString(state));
+        }
         mState = state;
         int btnIndex;
         switch (state) {
@@ -589,6 +617,19 @@ public class VoiceTranslateController extends BasePlayerController {
                 break;
         }
         updateVoiceButton(btnIndex);
+    }
+
+    private static String stateToString(int state) {
+        switch (state) {
+            case STATE_OFF:
+                return "OFF";
+            case STATE_PENDING:
+                return "PENDING";
+            case STATE_ACTIVE:
+                return "ACTIVE";
+            default:
+                return "UNKNOWN";
+        }
     }
 
     private void updateVoiceButton(int index) {

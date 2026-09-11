@@ -22,10 +22,16 @@ public class TranslationAudioPlayer implements Player.EventListener {
         void onReady();
     }
 
+    public interface OnErrorListener {
+        void onError(Exception error);
+    }
+
     private final Context mContext;
     private SimpleExoPlayer mPlayer;
     @Nullable
     private OnReadyListener mOnReadyListener;
+    @Nullable
+    private OnErrorListener mOnErrorListener;
     private boolean mReadyFired;
 
     public TranslationAudioPlayer(Context context) {
@@ -63,6 +69,10 @@ public class TranslationAudioPlayer implements Player.EventListener {
         mOnReadyListener = listener;
     }
 
+    public void setOnErrorListener(@Nullable OnErrorListener listener) {
+        mOnErrorListener = listener;
+    }
+
     public void setPlaybackSpeed(float speed) {
         if (mPlayer == null) {
             return;
@@ -98,6 +108,8 @@ public class TranslationAudioPlayer implements Player.EventListener {
     }
 
     public void release() {
+        mOnErrorListener = null;
+        mOnReadyListener = null;
         if (mPlayer != null) {
             mPlayer.removeListener(this);
             mPlayer.release();
@@ -118,6 +130,10 @@ public class TranslationAudioPlayer implements Player.EventListener {
 
     @Override
     public void onPlayerError(ExoPlaybackException error) {
-        Log.e(TAG, "Translation player error: %s", error.getMessage());
+        Log.e(TAG, "Translation player error: %s", error != null ? error.getMessage() : "unknown");
+        OnErrorListener listener = mOnErrorListener;
+        if (listener != null) {
+            listener.onError(error);
+        }
     }
 }
