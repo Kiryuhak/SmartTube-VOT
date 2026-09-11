@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/vot_progress_root"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:background="@drawable/bg_vot_progress_overlay"
+    android:paddingStart="14dp"
+    android:paddingEnd="16dp"
+    android:paddingTop="9dp"
+    android:paddingBottom="9dp"
+    android:elevation="6dp">
+
+    <ProgressBar
+        android:id="@+id/vot_progress_spinner"
+        style="?android:attr/progressBarStyleSmall"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_gravity="center_vertical"
+        android:indeterminate="true"
+        android:indeterminateTint="#FF2020" />
+
+    <ImageView
+        android:id="@+id/vot_progress_icon"
+        android:layout_width="20dp"
+        android:layout_height="20dp"
+        android:layout_gravity="center_vertical"
+        android:visibility="gone"
+        android:contentDescription="@null" />
+
+    <TextView
+        android:id="@+id/vot_progress_text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center_vertical"
+        android:layout_marginStart="10dp"
+        android:textColor="#F5F5F5"
+        android:textSize="15sp"
+        android:fontFamily="sans-serif-medium"
+        android:singleLine="true"
+        android:shadowColor="#99000000"
+        android:shadowRadius="3"
+        android:shadowDx="1"
+        android:shadowDy="1" />
+
+</LinearLayout>

@@ -20,7 +20,6 @@ import java.util.concurrent.TimeUnit;
 
 public class VotClient {
     private static final String TAG = VotClient.class.getSimpleName();
-    private static final int MAX_POLL_ATTEMPTS = 60;
 
     private final VotHttp mHttp = new VotHttp();
     private final VotData mVotData;
@@ -51,35 +50,87 @@ public class VotClient {
                 .subscribeOn(Schedulers.io());
     }
 
+    private static final int MAX_POLL_ATTEMPTS = 120;
+    private static final int MAX_CONSECUTIVE_NETWORK_RETRIES = 3;
+    private static final int DEFAULT_POLL_INTERVAL_SEC = 20;
+    private static final int MAX_WAIT_INTERVAL_SEC = 45;
+
+    private int calculateWaitSec(int remainingTimeSec, int attempt) {
+        if (remainingTimeSec <= 0) {
+            return DEFAULT_POLL_INTERVAL_SEC;
+        }
+        if (attempt == 0) {
+            if (remainingTimeSec <= 20) {
+                return Math.max(5, remainingTimeSec);
+            }
+            if (remainingTimeSec <= 60) {
+                return 25;
+            }
+            return MAX_WAIT_INTERVAL_SEC;
+        }
+        if (remainingTimeSec <= 15) {
+            return Math.max(5, remainingTimeSec);
+        }
+        return DEFAULT_POLL_INTERVAL_SEC;
+    }
+
     private void pollTranslation(ObservableEmitter<VotProgress> emitter, String youtubeUrl, long durationSec,
                                  boolean allowAudioFallback) {
         try {
+            Log.d(TAG, "VOT request started: %s (duration=%ds)", youtubeUrl, durationSec);
             VotTranslationResponse response = requestTranslation(youtubeUrl, durationSec, false);
+            Log.d(TAG, "Initial translation response: status=%d, remainingTime=%ds, message=%s",
+                    response.status, response.remainingTimeSec, response.message);
             if (!processResponse(emitter, youtubeUrl, durationSec, allowAudioFallback, response)) {
                 return;
             }
 
-            int waitSec = Math.max(3, response.remainingTimeSec > 0 ? response.remainingTimeSec : 5);
+            int waitSec = calculateWaitSec(response.remainingTimeSec, 0);
+            int consecutiveNetworkErrors = 0;
+
             for (int i = 0; i < MAX_POLL_ATTEMPTS && !emitter.isDisposed(); i++) {
+                Log.d(TAG, "VOT poll scheduled: attempt=%d/%d, interval=%ds (reported ETA=%ds)",
+                        i + 1, MAX_POLL_ATTEMPTS, waitSec, response.remainingTimeSec);
                 sleep(waitSec);
                 if (emitter.isDisposed()) {
+                    Log.d(TAG, "VOT polling cancelled (emitter disposed)");
                     return;
                 }
-                response = requestTranslation(youtubeUrl, durationSec, true);
+
+                try {
+                    response = requestTranslation(youtubeUrl, durationSec, true);
+                    consecutiveNetworkErrors = 0;
+                } catch (IOException e) {
+                    consecutiveNetworkErrors++;
+                    Log.w(TAG, "Network error during VOT poll attempt %d (retry %d/%d): %s",
+                            i + 1, consecutiveNetworkErrors, MAX_CONSECUTIVE_NETWORK_RETRIES, e.getMessage());
+                    if (consecutiveNetworkErrors <= MAX_CONSECUTIVE_NETWORK_RETRIES && !emitter.isDisposed()) {
+                        waitSec = 5;
+                        continue;
+                    }
+                    throw e;
+                }
+
+                Log.d(TAG, "VOT poll response: attempt=%d, status=%d, remainingTime=%ds",
+                        i + 1, response.status, response.remainingTimeSec);
+
                 if (!processResponse(emitter, youtubeUrl, durationSec, allowAudioFallback, response)) {
                     return;
                 }
-                waitSec = Math.max(3, response.remainingTimeSec > 0 ? response.remainingTimeSec : waitSec);
+                waitSec = calculateWaitSec(response.remainingTimeSec, i + 1);
             }
             if (!emitter.isDisposed()) {
+                Log.w(TAG, "VOT polling exceeded MAX_POLL_ATTEMPTS (%d), timing out", MAX_POLL_ATTEMPTS);
                 emitter.onNext(VotProgress.failed("Translation timeout"));
                 emitter.onComplete();
             }
         } catch (IOException e) {
+            Log.e(TAG, "VOT IO error: %s", e.getMessage());
             if (!emitter.isDisposed()) {
                 emitter.onError(e);
             }
         } catch (VotException e) {
+            Log.e(TAG, "VOT error: %s", e.getMessage());
             if (!emitter.isDisposed()) {
                 emitter.onNext(VotProgress.failed(e.getMessage()));
                 emitter.onComplete();
