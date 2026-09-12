@@ -60,6 +60,8 @@ public final class VotProtobuf {
         r.remainingTimeSec = remaining instanceof Integer ? (Integer) remaining : 0;
         r.translationId = (String) fields.get(7);
         r.message = (String) fields.get(9);
+        Object isLively = fields.get(10);
+        r.isLivelyVoice = isLively instanceof Integer && ((Integer) isLively) == 1;
         return r;
     }
 

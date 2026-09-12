@@ -5,6 +5,8 @@ import android.content.Context;
 import android.text.TextUtils;
 
 import com.liskovsoft.sharedutils.prefs.SharedPreferencesBase;
+import com.liskovsoft.smartyoutubetv2.common.BuildConfig;
+import com.liskovsoft.smartyoutubetv2.common.vot.VotAuthMode;
 
 public class VotData extends SharedPreferencesBase {
     private static final String PREFS_NAME = "vot_data";
@@ -59,7 +61,30 @@ public class VotData extends SharedPreferencesBase {
         return !TextUtils.isEmpty(getOAuthToken());
     }
 
+    private static final String PREF_AUTH_MODE = "vot_auth_mode";
+
+    public VotAuthMode getAuthMode() {
+        if (!BuildConfig.DEBUG) {
+            return VotAuthMode.AUTO;
+        }
+        String modeName = getString(PREF_AUTH_MODE, VotAuthMode.AUTO.name());
+        try {
+            return VotAuthMode.valueOf(modeName);
+        } catch (Exception e) {
+            return VotAuthMode.AUTO;
+        }
+    }
+
+    public void setAuthMode(VotAuthMode mode) {
+        if (BuildConfig.DEBUG) {
+            putString(PREF_AUTH_MODE, mode != null ? mode.name() : VotAuthMode.AUTO.name());
+        }
+    }
+
     public boolean isLivelyVoiceEnabled() {
+        if (BuildConfig.DEBUG && getAuthMode() == VotAuthMode.ANONYMOUS) {
+            return getBoolean(LIVELY_VOICE, true);
+        }
         return hasOAuthToken() && getBoolean(LIVELY_VOICE, true);
     }
 

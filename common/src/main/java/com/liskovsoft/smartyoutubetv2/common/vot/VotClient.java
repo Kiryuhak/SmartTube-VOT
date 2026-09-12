@@ -23,11 +23,27 @@ public class VotClient {
 
     private final VotHttp mHttp = new VotHttp();
     private final VotData mVotData;
-    @Nullable
-    private VotSession mSession;
+    private final AnonymousVotSessionProvider mAnonProvider;
+    private final YandexOAuthSessionProvider mOAuthProvider;
 
     public VotClient(Context context) {
         mVotData = VotData.instance(context);
+        mAnonProvider = new AnonymousVotSessionProvider(mHttp);
+        mOAuthProvider = new YandexOAuthSessionProvider(mVotData, mAnonProvider);
+    }
+
+    public VotSessionProvider getActiveProvider() {
+        VotAuthMode mode = mVotData.getAuthMode();
+        if (mode == VotAuthMode.ANONYMOUS) {
+            return mAnonProvider;
+        }
+        if (mode == VotAuthMode.YANDEX_ID) {
+            return mOAuthProvider;
+        }
+        if (mVotData.isLivelyVoiceEnabled() && mVotData.hasOAuthToken()) {
+            return mOAuthProvider;
+        }
+        return mAnonProvider;
     }
 
     public String translateToRussian(String youtubeUrl, long durationSec) throws IOException, VotException {
@@ -147,6 +163,7 @@ public class VotClient {
         }
 
         if (response.status == VotTranslationResponse.STATUS_SESSION_REQUIRED) {
+            Log.d(TAG, "ANON_VOT session_required");
             emitter.onNext(VotProgress.failed("auth required"));
             emitter.onComplete();
             return false;
@@ -183,7 +200,18 @@ public class VotClient {
 
     private VotTranslationResponse requestTranslation(String youtubeUrl, double durationSec, boolean subsequent)
             throws IOException {
+        VotSessionProvider provider = getActiveProvider();
         boolean useLively = mVotData.isLivelyVoiceEnabled();
+        VotAuthMode mode = mVotData.getAuthMode();
+
+        Log.d(TAG, "ANON_VOT request standard/lively (useLively=" + useLively + ", authMode=" + mode + ")");
+
+        try {
+            provider.getOrCreateSession();
+        } catch (Exception e) {
+            Log.w(TAG, "ANON_VOT session bootstrap error: " + e.getMessage());
+        }
+
         byte[] body = VotProtobuf.encodeTranslationRequest(
                 youtubeUrl,
                 durationSec,
@@ -193,26 +221,16 @@ public class VotClient {
                 useLively
         );
 
-        Map<String, String> headers = buildTranslateHeaders(body);
-        byte[] raw = mHttp.postProtobuf("/video-translation/translate", body, headers);
+        String path = "/video-translation/translate";
+        Map<String, String> headers = provider.getTranslateHeaders(body, path, useLively);
+        byte[] raw = mHttp.postProtobuf(path, body, headers);
 
         if (raw == null || raw.length == 0) {
             throw new IOException("Empty translation response");
         }
-        return VotProtobuf.decodeTranslationResponse(raw);
-    }
-
-    private Map<String, String> buildTranslateHeaders(byte[] body) {
-        Map<String, String> headers;
-        if (mSession != null) {
-            headers = VotHeaders.sessionTranslate(mSession, body, "/video-translation/translate");
-        } else {
-            headers = VotHeaders.simpleTranslate(body);
-        }
-        if (mVotData.isLivelyVoiceEnabled()) {
-            headers = VotHeaders.merge(headers, VotHeaders.oauthHeader(mVotData.getOAuthToken()));
-        }
-        return headers;
+        VotTranslationResponse response = VotProtobuf.decodeTranslationResponse(raw);
+        Log.d(TAG, "ANON_VOT response status: " + response.status + ", isLively=" + response.isLivelyVoice);
+        return response;
     }
 
     private void handleAudioRequested(String youtubeUrl, long durationSec, @Nullable String translationId)
@@ -225,7 +243,11 @@ public class VotClient {
             throw new VotException("Missing translationId for audio upload");
         }
 
-        ensureSession();
+        try {
+            getActiveProvider().getOrCreateSession();
+        } catch (Exception e) {
+            Log.w(TAG, "ANON_VOT session bootstrap for audio upload: " + e.getMessage());
+        }
         requestFailAudio(youtubeUrl);
         uploadEmptyAudio(youtubeUrl, translationId);
     }
@@ -253,24 +275,8 @@ public class VotClient {
     private void uploadEmptyAudio(String youtubeUrl, String translationId) throws IOException {
         byte[] body = VotProtobuf.encodeTranslationAudioRequest(
                 youtubeUrl, translationId, VotConfig.FAKE_AUDIO_FILE_ID);
-        mHttp.putProtobuf("/video-translation/audio", body,
-                VotHeaders.sessionTranslate(mSession, body, "/video-translation/audio"));
-    }
-
-    private void ensureSession() throws IOException {
-        if (mSession != null && System.currentTimeMillis() - mSession.createdAtMs < mSession.expiresSec * 1000L) {
-            return;
-        }
-        String uuid = VotSignature.randomToken();
-        byte[] body = VotProtobuf.encodeSessionRequest(uuid, "video-translation");
-        byte[] raw = mHttp.postProtobuf("/session/create", body, VotHeaders.simpleTranslate(body));
-        if (raw == null) {
-            throw new IOException("Empty session response");
-        }
-        VotSession decoded = VotProtobuf.decodeSessionResponse(raw);
-        decoded.uuid = uuid;
-        decoded.createdAtMs = System.currentTimeMillis();
-        mSession = decoded;
+        String path = "/video-translation/audio";
+        mHttp.putProtobuf(path, body, getActiveProvider().getAudioUploadHeaders(body, path));
     }
 
     /**
