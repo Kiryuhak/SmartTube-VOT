@@ -573,6 +573,36 @@ public class AppDialogUtil {
         presenter.showDialog(title);
     }
 
+    public static void showVotReplaceDubDialog(Context context, Runnable onConfirm, Runnable onCancel) {
+        AppDialogPresenter presenter = AppDialogPresenter.instance(context);
+
+        List<OptionItem> options = new ArrayList<>();
+
+        options.add(UiOptionItem.from(
+                context.getString(R.string.vot_replace_dub_confirm),
+                option -> {
+                    presenter.goBack();
+                    if (onConfirm != null) {
+                        onConfirm.run();
+                    }
+                }));
+
+        options.add(UiOptionItem.from(
+                context.getString(R.string.vot_replace_dub_cancel),
+                option -> {
+                    presenter.goBack();
+                    if (onCancel != null) {
+                        onCancel.run();
+                    }
+                }));
+
+        String title = context.getString(R.string.vot_replace_dub_title);
+        String desc = context.getString(R.string.vot_replace_dub_desc);
+
+        presenter.appendStringsCategory(desc, options);
+        presenter.showDialog(title, onCancel);
+    }
+
     public static OptionCategory createPitchEffectCategory(Context context) {
         String title = context.getString(R.string.pitch_effect);
 

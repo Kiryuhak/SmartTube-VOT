@@ -31,9 +31,18 @@
 
     <!-- VOT Progress Indicator -->
     <string name="vot_progress_preparing">Подготовка перевода…</string>
+    <string name="vot_progress_starting">Запуск перевода…</string>
     <string name="vot_progress_waiting_eta">Перевод: ~%s</string>
     <string name="vot_progress_still_waiting">Перевод всё ещё готовится… %s</string>
     <string name="vot_progress_ready">Перевод готов</string>
     <string name="vot_progress_error">Не удалось подготовить перевод</string>
     <string name="vot_progress_timeout">Перевод не был подготовлен</string>
+
+    <!-- Replace YouTube Dub with Yandex VOT -->
+    <string name="vot_replace_dub_title">Заменить озвучку на Яндекс?</string>
+    <string name="vot_replace_dub_desc">Сейчас используется русская озвучка YouTube.\nДля перевода Яндекса будет включена оригинальная аудиодорожка видео.</string>
+    <string name="vot_replace_dub_confirm">Использовать Яндекс</string>
+    <string name="vot_replace_dub_cancel">Отмена</string>
+    <string name="vot_unable_to_switch_original">Не удалось переключиться на оригинальную аудиодорожку</string>
+    <string name="vot_unable_to_determine_original">Не удалось определить оригинальную аудиодорожку</string>
 </resources>

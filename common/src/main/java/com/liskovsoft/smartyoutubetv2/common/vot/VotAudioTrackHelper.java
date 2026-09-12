@@ -46,20 +46,7 @@ public final class VotAudioTrackHelper {
             return null;
         }
         String lang = format.getLanguage();
-        if (lang != null && !lang.isEmpty()) {
-            return lang;
-        }
-        CharSequence title = format.getTitle();
-        if (title == null) {
-            return null;
-        }
-        String t = title.toString().toLowerCase(Locale.US);
-        if (t.contains("english") || t.contains("original") || t.contains("dubbed")
-                || t.matches(".*\\ben[- ]?(us|gb)?\\b.*")
-                || t.contains("russian") || t.contains("русский") || t.contains("русская") || t.contains("рус")) {
-            return title.toString();
-        }
-        return null;
+        return (lang != null && !lang.isEmpty()) ? lang : null;
     }
 
     private static TrackInfo parse(@Nullable FormatItem format, @Nullable String raw) {
@@ -144,11 +131,7 @@ public final class VotAudioTrackHelper {
         return normalized.equals("ru")
                 || normalized.startsWith("ru-")
                 || normalized.equals("rus")
-                || normalized.equals("russian")
-                || normalized.equals("рус")
-                || normalized.startsWith("рус-")
-                || normalized.equals("русский")
-                || normalized.equals("русская");
+                || normalized.equals("russian");
     }
 
     public static boolean isKnownLanguage(@Nullable String langCode) {
@@ -403,10 +386,14 @@ public final class VotAudioTrackHelper {
                 continue;
             }
             if (isOriginalTrack(info) && info.langCode != null && !isRussianLang(info.langCode)) {
-                originalNonRu = format;
+                if (originalNonRu == null || isEnglishLang(info.langCode)) {
+                    originalNonRu = format;
+                }
             }
             if (info.langCode != null && !isRussianLang(info.langCode) && !isDubbed(info)) {
-                anyNonRu = format;
+                if (anyNonRu == null || isEnglishLang(info.langCode)) {
+                    anyNonRu = format;
+                }
             }
             if (isOriginalTrack(info) && anyOriginal == null) {
                 anyOriginal = format;
@@ -426,6 +413,44 @@ public final class VotAudioTrackHelper {
             return false;
         }
         return a.getId() == b.getId();
+    }
+
+    /**
+     * Checks if current selected audio is a Russian dubbed track (YouTube dub)
+     * for an originally non-Russian video.
+     *
+     * Strict rules:
+     * - selected track language must be Russian.
+     * - MUST NOT be native Russian (i.e. not an original Russian track).
+     * - An explicit original non-Russian track must exist, OR the track is explicitly tagged as dubbed/dubbed-auto and non-Russian tracks exist.
+     */
+    public static boolean isRussianDubbedTrack(@Nullable TrackInfo current,
+                                               @Nullable List<FormatItem> formats) {
+        if (current == null || !isRussianLang(current.langCode)) {
+            return false;
+        }
+        if (formats == null || formats.isEmpty()) {
+            return false;
+        }
+
+        // If the current track is explicitly marked as the original track and not dubbed, it's native Russian!
+        if ("original".equals(current.acont) || "descriptive".equals(current.acont)) {
+            return false;
+        }
+
+        // Check if there is a verified non-Russian original track available
+        FormatItem originalNonRu = findBestOriginalForYandex(formats);
+        if (originalNonRu != null) {
+            TrackInfo origInfo = from(originalNonRu);
+            if (origInfo.langCode != null && !isRussianLang(origInfo.langCode) && isOriginalTrack(origInfo)) {
+                return true;
+            }
+            if (isDubbed(current) && origInfo.langCode != null && !isRussianLang(origInfo.langCode)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Nullable

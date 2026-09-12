@@ -359,6 +359,12 @@
     <string name="vot_prefer_youtube_dub_desc">When available, switch to YouTube\'s Russian audio track instead of Yandex voice-over.</string>
     <string name="vot_using_youtube_dub">Using YouTube Russian audio track</string>
     <string name="vot_disable_google_for_yandex">Turn off «YouTube auto-dub» in the voice translation menu first</string>
+    <string name="vot_replace_dub_title">Replace dubbing with Yandex?</string>
+    <string name="vot_replace_dub_desc">A Russian YouTube audio track is currently selected.\nThe original audio track will be used for Yandex voice-over translation.</string>
+    <string name="vot_replace_dub_confirm">Use Yandex</string>
+    <string name="vot_replace_dub_cancel">Cancel</string>
+    <string name="vot_unable_to_switch_original">Unable to switch to the original audio track</string>
+    <string name="vot_unable_to_determine_original">Unable to determine the original audio track</string>
     <string name="action_playback_queue">Playback queue</string>
     <string name="action_video_speed">Video speed</string>
     <string name="action_subtitles">Subtitles</string>
@@ -816,6 +822,7 @@
     <string name="vot_error_playback" translatable="false"></string>
     <string name="vot_unknown_lang_manual" translatable="false"></string>
     <string name="vot_progress_preparing" translatable="false"></string>
+    <string name="vot_progress_starting" translatable="false"></string>
     <string name="vot_progress_waiting_eta" translatable="false"></string>
     <string name="vot_progress_still_waiting" translatable="false"></string>
     <string name="vot_progress_ready" translatable="false"></string>
