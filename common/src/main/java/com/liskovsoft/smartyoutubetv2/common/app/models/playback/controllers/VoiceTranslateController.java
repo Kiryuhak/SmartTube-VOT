@@ -250,7 +250,7 @@ public class VoiceTranslateController extends BasePlayerController {
             } else if (mTrackSwitchState == TrackSwitchState.VOT_ACTIVE
                     || mTrackSwitchState == TrackSwitchState.STARTING_VOT) {
                 if (mPendingOriginalFormat != null && !VotAudioTrackHelper.isSameFormat(track, mPendingOriginalFormat)) {
-                    Log.d(TAG, "VOT manual: restore invalidated by user track change");
+                    Log.i(TAG, "VOT manual: restore invalidated by user track change");
                     mUserManuallyChangedTrack = true;
                     mRestorableDubFormat = null;
                     mSavedAudioFormat = null;
@@ -328,7 +328,7 @@ public class VoiceTranslateController extends BasePlayerController {
         if (buttonState == BTN_OFF) {
             armAndStart();
         } else {
-            Log.d(TAG, "Trigger: manual stop");
+            Log.i(TAG, "Trigger: manual stop");
             disarm();
             MessageHelpers.showMessage(getContext(), R.string.vot_disabled);
         }
@@ -342,13 +342,13 @@ public class VoiceTranslateController extends BasePlayerController {
     }
 
     private void armAndStart() {
-        Log.d(TAG, "Trigger: manual start (Yandex authorized=%b)", votData().hasOAuthToken());
+        Log.i(TAG, "Trigger: manual start (Yandex authorized=" + votData().hasOAuthToken() + ")");
         if (votData().isPreferYoutubeAutoDub()) {
             MessageHelpers.showMessage(getContext(), R.string.vot_disable_google_for_yandex);
             return;
         }
         TrackInfo info = resolveAudioInfo();
-        Log.d(TAG, "VOT manual: selected audio=%s", info != null ? info.rawLabel : "null");
+        Log.i(TAG, "VOT manual: selected audio=" + (info != null ? info.rawLabel : "null"));
         if (info != null && VotAudioTrackHelper.isRussianLang(info.langCode)) {
             List<FormatItem> formats = getAudioFormats();
             if (VotAudioTrackHelper.isRussianDubbedTrack(info, formats)) {
@@ -358,8 +358,8 @@ public class VoiceTranslateController extends BasePlayerController {
                     return;
                 }
                 TrackInfo origInfo = VotAudioTrackHelper.from(original);
-                Log.d(TAG, "VOT manual: original audio=%s", origInfo != null ? origInfo.rawLabel : "null");
-                Log.d(TAG, "VOT manual: russian dubbed track detected");
+                Log.i(TAG, "VOT manual: original audio=" + (origInfo != null ? origInfo.rawLabel : "null"));
+                Log.i(TAG, "VOT manual: russian dubbed track detected");
                 showReplaceDubDialog(info.format != null ? info.format : (getPlayer() != null ? getPlayer().getAudioFormat() : null), original);
                 return;
             } else {
@@ -390,7 +390,7 @@ public class VoiceTranslateController extends BasePlayerController {
                     mTrackSwitchVideoId = videoId;
                     mUserManuallyChangedTrack = false;
                     mTrackSwitchState = TrackSwitchState.SWITCHING_TO_ORIGINAL;
-                    Log.d(TAG, "VOT manual: switching to original track");
+                    Log.i(TAG, "VOT manual: switching to original track");
                     saveCurrentAudioFormatBeforeSwitch(original);
                     getPlayer().setFormat(original);
                     FormatItem active = getPlayer().getAudioFormat();
@@ -402,7 +402,7 @@ public class VoiceTranslateController extends BasePlayerController {
                     }
                 },
                 () -> {
-                    Log.d(TAG, "VOT manual: replace dubbing cancelled by user");
+                    Log.i(TAG, "VOT manual: replace dubbing cancelled by user");
                     resetTrackSwitch();
                 }
         );
@@ -410,11 +410,11 @@ public class VoiceTranslateController extends BasePlayerController {
 
     private void onOriginalTrackActivated(FormatItem track) {
         Utils.removeCallbacks(mTrackSwitchTimeoutRunnable);
-        Log.d(TAG, "VOT manual: original track active");
+        Log.i(TAG, "VOT manual: original track active");
         mPendingOriginalFormat = track;
         mTrackSwitchState = TrackSwitchState.STARTING_VOT;
         VotAudioTrackHelper.TrackInfo info = VotAudioTrackHelper.from(track);
-        Log.d(TAG, "VOT manual: starting Yandex VOT from=%s", info != null && info.langCode != null ? info.langCode : "unknown");
+        Log.i(TAG, "VOT manual: starting Yandex VOT from=" + (info != null && info.langCode != null ? info.langCode : "unknown"));
         mUserArmed = true;
         mArmed = true;
         if (progressOverlay() != null) {
@@ -425,7 +425,7 @@ public class VoiceTranslateController extends BasePlayerController {
 
     private void restorePreviousDubTrack() {
         if (!mUserManuallyChangedTrack && mRestorableDubFormat != null && getPlayer() != null) {
-            Log.d(TAG, "VOT manual: restoring previous audio track");
+            Log.i(TAG, "VOT manual: restoring previous audio track");
             mTrackSwitchState = TrackSwitchState.RESTORING_PREVIOUS_TRACK;
             getPlayer().setFormat(mRestorableDubFormat);
         }
@@ -493,7 +493,7 @@ public class VoiceTranslateController extends BasePlayerController {
                 disarmWithMessage(R.string.vot_skip_russian);
                 mUserArmed = false;
             } else if (autoEnabled) {
-                Log.d(TAG, "VOT auto: skip, current audio language=%s (video=%s)", langCode, videoId);
+                Log.i(TAG, "VOT auto: skip, current audio language=" + langCode + " (video=" + videoId + ")");
                 if (mArmed || mState != STATE_OFF) {
                     disarmQuiet();
                 }
@@ -503,7 +503,7 @@ public class VoiceTranslateController extends BasePlayerController {
 
         if (VotAudioTrackHelper.isExplicitNonRussian(info)) {
             if (autoEnabled) {
-                Log.d(TAG, "VOT auto: start, current audio language=%s (video=%s)", langCode, videoId);
+                Log.i(TAG, "VOT auto: start, current audio language=" + langCode + " (video=" + videoId + ")");
             }
             if (!mArmed || (mState == STATE_OFF && mTranslationDisposable == null)) {
                 mArmed = true;
@@ -513,7 +513,7 @@ public class VoiceTranslateController extends BasePlayerController {
         }
 
         if (autoEnabled) {
-            Log.d(TAG, "VOT auto: skip, audio language=%s (video=%s)", langCode, videoId);
+            Log.i(TAG, "VOT auto: skip, audio language=" + langCode + " (video=" + videoId + ")");
         }
     }
 
@@ -576,7 +576,7 @@ public class VoiceTranslateController extends BasePlayerController {
         Utils.postDelayed(mProgressTickRunnable, PROGRESS_TICK_INTERVAL_MS);
 
         long durationSec = Math.max(1, getPlayer().getDurationMs() / 1000);
-        Log.d(TAG, "VOT request started: url=%s, duration=%ds, userArmed=%b", videoUrl, durationSec, mUserArmed);
+        Log.i(TAG, "VOT request started: url=" + videoUrl + ", duration=" + durationSec + "s, userArmed=" + mUserArmed);
         mTranslationDisposable = votClient().observeTranslation(videoUrl, durationSec)
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(
@@ -723,7 +723,7 @@ public class VoiceTranslateController extends BasePlayerController {
                 }
 
                 long targetPositionMs = getPlayer().getPositionMs();
-                Log.d(TAG, "VOT_AUDIO session=%d target_position=%d", sessionId, targetPositionMs);
+                Log.i(TAG, "VOT_AUDIO session=" + sessionId + " initial_seek_target target_position=" + targetPositionMs);
 
                 if (targetPositionMs <= 200) {
                     onInitialSyncComplete(sessionId, videoId);
@@ -736,7 +736,7 @@ public class VoiceTranslateController extends BasePlayerController {
             public void onSeekProcessed() {
                 if (sessionId != mTranslationSessionId || getPlayer() == null || getPlayer().getVideo() == null
                         || !Helpers.equals(videoId, getPlayer().getVideo().videoId)) {
-                    Log.w(TAG, "VOT_AUDIO session=%d seek processed but session/video changed, ignoring", sessionId);
+                    Log.w(TAG, "VOT_AUDIO session=" + sessionId + " seek processed but session/video changed, ignoring");
                     return;
                 }
 
@@ -761,7 +761,7 @@ public class VoiceTranslateController extends BasePlayerController {
         }
 
         if (mTranslationPlayer.isPlaying()) {
-            Log.d(TAG, "VOT_AUDIO session=%d duplicate_play_ignored", sessionId);
+            Log.i(TAG, "VOT_AUDIO session=" + sessionId + " duplicate_play_ignored");
             return;
         }
 
@@ -774,7 +774,7 @@ public class VoiceTranslateController extends BasePlayerController {
 
         if (!mainPlaying) {
             mTranslationPlayer.pause();
-            Log.d(TAG, "VOT_AUDIO session=%d main player paused, waiting for resume", sessionId);
+            Log.i(TAG, "VOT_AUDIO session=" + sessionId + " main player paused, waiting for resume");
         }
 
         setState(STATE_ACTIVE);
@@ -806,12 +806,10 @@ public class VoiceTranslateController extends BasePlayerController {
         long transPos = mTranslationPlayer.getPositionMs();
         long delta = Math.abs(mainPos - transPos);
 
-        Log.d(TAG, "VOT_AUDIO session=%d sync video_pos=%d trans_pos=%d delta=%d state=%s",
-                mTranslationSessionId, mainPos, transPos, delta, stateToString(mState));
+        Log.i(TAG, "VOT_AUDIO session=" + mTranslationSessionId + " sync video_pos=" + mainPos + " trans_pos=" + transPos + " delta=" + delta + " state=" + stateToString(mState));
 
         if (delta > SYNC_THRESHOLD_MS) {
-            Log.d(TAG, "VOT_AUDIO session=%d drift correction seek to %d (delta=%d)",
-                    mTranslationSessionId, mainPos, delta);
+            Log.i(TAG, "VOT_AUDIO session=" + mTranslationSessionId + " drift correction seek to " + mainPos + " (delta=" + delta + ")");
             mLastSyncSeekTimestamp = now;
             mTranslationPlayer.seekTo(mainPos);
         }
@@ -834,12 +832,14 @@ public class VoiceTranslateController extends BasePlayerController {
         mSavedMainVolume = getPlayer().getVolume();
         getPlayer().setVolume(votData().getOriginalVolumeMultiplier());
         mIsAudioDucked = true;
+        Log.i(TAG, "VOT main audio ducked");
     }
 
     private void restoreMainVolume() {
         if (getPlayer() != null && mIsAudioDucked) {
             getPlayer().setVolume(mSavedMainVolume);
             mIsAudioDucked = false;
+            Log.i(TAG, "VOT main audio restored");
         }
     }
 

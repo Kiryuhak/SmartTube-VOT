@@ -139,4 +139,35 @@ public class VotAudioTrackHelperTest {
         assertFalse("Auto VOT must not auto-start when Russian dub is selected",
                 VotAudioTrackHelper.shouldAutoStartLikeManual(current, formats));
     }
+
+    @Test
+    public void testMultipleDubTracksPrefersEnglishOriginal() {
+        FormatItem esDubbed = new TestFormatItem(1, "es (dubbed)", false, false);
+        FormatItem ruDubbed = new TestFormatItem(2, "ru (dubbed)", true, false);
+        FormatItem enOriginal = new TestFormatItem(3, "en (original)", false, true);
+        FormatItem deDubbed = new TestFormatItem(4, "de (dubbed)", false, false);
+        List<FormatItem> formats = Arrays.asList(esDubbed, ruDubbed, enOriginal, deDubbed);
+
+        FormatItem best = VotAudioTrackHelper.findBestOriginalForYandex(formats);
+        assertNotNull("Must find original track when multiple dubs exist", best);
+        assertEquals(3, best.getId());
+        assertEquals("en (original)", best.getLanguage());
+
+        // And verify ruDubbed is recognized as dubbed
+        VotAudioTrackHelper.TrackInfo current = VotAudioTrackHelper.from(ruDubbed);
+        assertTrue("ru (dubbed) must be detected as Russian dubbed track",
+                VotAudioTrackHelper.isRussianDubbedTrack(current, formats));
+    }
+
+    @Test
+    public void testNoTitleParsingUsed() {
+        // Track where format.getLanguage() is null, but title has Russian text
+        FormatItem trackWithoutLang = new TestFormatItem(1, null, true, true) {
+            @Override public CharSequence getTitle() { return "Русский перевод (dubbed)"; }
+        };
+        VotAudioTrackHelper.TrackInfo info = VotAudioTrackHelper.from(trackWithoutLang);
+        assertNull("Language code must not be extracted from human-readable title", info.langCode);
+        assertFalse("Must not be detected as Russian language without structured metadata",
+                VotAudioTrackHelper.isRussianLang(info.langCode));
+    }
 }

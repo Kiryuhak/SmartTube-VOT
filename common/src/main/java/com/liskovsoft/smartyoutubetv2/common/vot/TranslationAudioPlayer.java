@@ -43,12 +43,12 @@ public class TranslationAudioPlayer implements Player.EventListener {
         mIsPrepared = false;
         mIsPlaying = false;
 
-        Log.d(TAG, "VOT_AUDIO session=%d create", mSessionId);
+        Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " create");
         String userAgent = Util.getUserAgent(mContext, "SmartTubeVOT");
         DefaultDataSourceFactory dataSourceFactory = new DefaultDataSourceFactory(mContext, userAgent);
         ExtractorMediaSource mediaSource = new ExtractorMediaSource.Factory(dataSourceFactory)
                 .createMediaSource(Uri.parse(url));
-        Log.d(TAG, "VOT_AUDIO session=%d source_set", mSessionId);
+        Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " source_set");
 
         mPlayer = ExoPlayerFactory.newSimpleInstance(mContext);
         mPlayer.addListener(this);
@@ -61,7 +61,7 @@ public class TranslationAudioPlayer implements Player.EventListener {
             mPlayer.setPlaybackParameters(new PlaybackParameters(speed, 1f));
         }
 
-        Log.d(TAG, "VOT_AUDIO session=%d prepare_start", mSessionId);
+        Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " prepare_start");
         mPlayer.prepare(mediaSource);
     }
 
@@ -70,13 +70,13 @@ public class TranslationAudioPlayer implements Player.EventListener {
             return;
         }
         if (mIsPlaying) {
-            Log.d(TAG, "VOT_AUDIO session=%d duplicate_play_ignored", mSessionId);
+            Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " duplicate_play_ignored");
             return;
         }
         mIsPlaying = true;
         mPlayer.setVolume(volume);
         mPlayer.setPlayWhenReady(true);
-        Log.d(TAG, "VOT_AUDIO session=%d play", mSessionId);
+        Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " audible_start");
     }
 
     public void setVolume(float volume) {
@@ -103,8 +103,7 @@ public class TranslationAudioPlayer implements Player.EventListener {
 
     public void seekTo(long positionMs) {
         if (mPlayer != null) {
-            Log.d(TAG, "VOT_AUDIO session=%d target_position=%d", mSessionId, positionMs);
-            Log.d(TAG, "VOT_AUDIO session=%d seek_start", mSessionId);
+            Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " initial_seek_start target_position=" + positionMs);
             mPlayer.seekTo(positionMs);
         }
     }
@@ -128,7 +127,7 @@ public class TranslationAudioPlayer implements Player.EventListener {
     public void release() {
         mCallback = null;
         if (mPlayer != null) {
-            Log.d(TAG, "VOT_AUDIO session=%d release", mSessionId);
+            Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " release");
             mPlayer.removeListener(this);
             mPlayer.release();
             mPlayer = null;
@@ -141,7 +140,7 @@ public class TranslationAudioPlayer implements Player.EventListener {
     public void onPlayerStateChanged(boolean playWhenReady, int playbackState) {
         if (playbackState == Player.STATE_READY && !mIsPrepared) {
             mIsPrepared = true;
-            Log.d(TAG, "VOT_AUDIO session=%d prepared", mSessionId);
+            Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " prepared");
             if (mCallback != null) {
                 mCallback.onPrepared();
             }
@@ -150,7 +149,7 @@ public class TranslationAudioPlayer implements Player.EventListener {
 
     @Override
     public void onSeekProcessed() {
-        Log.d(TAG, "VOT_AUDIO session=%d seek_complete", mSessionId);
+        Log.i(TAG, "VOT_AUDIO session=" + mSessionId + " initial_seek_complete");
         if (mCallback != null) {
             mCallback.onSeekProcessed();
         }

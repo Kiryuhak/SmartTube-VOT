@@ -46,20 +46,7 @@ public final class VotAudioTrackHelper {
             return null;
         }
         String lang = format.getLanguage();
-        if (lang != null && !lang.isEmpty()) {
-            return lang;
-        }
-        CharSequence title = format.getTitle();
-        if (title == null) {
-            return null;
-        }
-        String t = title.toString().toLowerCase(Locale.US);
-        if (t.contains("english") || t.contains("original") || t.contains("dubbed")
-                || t.matches(".*\\ben[- ]?(us|gb)?\\b.*")
-                || t.contains("russian") || t.contains("русский") || t.contains("русская") || t.contains("рус")) {
-            return title.toString();
-        }
-        return null;
+        return (lang != null && !lang.isEmpty()) ? lang : null;
     }
 
     private static TrackInfo parse(@Nullable FormatItem format, @Nullable String raw) {
@@ -144,11 +131,7 @@ public final class VotAudioTrackHelper {
         return normalized.equals("ru")
                 || normalized.startsWith("ru-")
                 || normalized.equals("rus")
-                || normalized.equals("russian")
-                || normalized.equals("рус")
-                || normalized.startsWith("рус-")
-                || normalized.equals("русский")
-                || normalized.equals("русская");
+                || normalized.equals("russian");
     }
 
     public static boolean isKnownLanguage(@Nullable String langCode) {
@@ -403,10 +386,14 @@ public final class VotAudioTrackHelper {
                 continue;
             }
             if (isOriginalTrack(info) && info.langCode != null && !isRussianLang(info.langCode)) {
-                originalNonRu = format;
+                if (originalNonRu == null || isEnglishLang(info.langCode)) {
+                    originalNonRu = format;
+                }
             }
             if (info.langCode != null && !isRussianLang(info.langCode) && !isDubbed(info)) {
-                anyNonRu = format;
+                if (anyNonRu == null || isEnglishLang(info.langCode)) {
+                    anyNonRu = format;
+                }
             }
             if (isOriginalTrack(info) && anyOriginal == null) {
                 anyOriginal = format;
