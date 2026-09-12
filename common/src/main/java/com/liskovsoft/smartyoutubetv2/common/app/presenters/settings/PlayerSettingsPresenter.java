@@ -23,6 +23,8 @@ import com.liskovsoft.smartyoutubetv2.common.utils.AppDialogUtil;
 import com.liskovsoft.smartyoutubetv2.common.utils.Utils;
 import com.liskovsoft.smartyoutubetv2.common.utils.VotOnboardingHelper;
 import com.liskovsoft.smartyoutubetv2.common.utils.VotTokenEditDialog;
+import com.liskovsoft.smartyoutubetv2.common.BuildConfig;
+import com.liskovsoft.smartyoutubetv2.common.vot.VotAuthMode;
 import com.liskovsoft.youtubeapi.service.internal.MediaServiceData;
 
 import android.content.Intent;
@@ -236,7 +238,7 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
                 getContext().getString(R.string.vot_lively_voice),
                 getContext().getString(R.string.vot_lively_voice_desc),
                 optionItem -> {
-                    if (!mVotData.hasOAuthToken()) {
+                    if (!mVotData.hasOAuthToken() && !(BuildConfig.DEBUG && mVotData.getAuthMode() == VotAuthMode.ANONYMOUS)) {
                         MessageHelpers.showMessage(getContext(), R.string.vot_error_auth_required);
                         startYandexOAuth();
                         return;
@@ -244,6 +246,13 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
                     mVotData.setLivelyVoiceEnabled(optionItem.isSelected());
                 },
                 mVotData.isLivelyVoiceEnabled()));
+
+        if (BuildConfig.DEBUG) {
+            settingsPresenter.appendSingleButton(UiOptionItem.from(
+                    "[DEBUG] Режим авторизации: " + mVotData.getAuthMode().name(),
+                    optionItem -> toggleDebugAuthMode(settingsPresenter)
+            ));
+        }
 
         String statusText = mVotData.hasOAuthToken()
                 ? getContext().getString(R.string.vot_yandex_status_authorized)
@@ -286,6 +295,22 @@ public class PlayerSettingsPresenter extends BasePresenter<Void> {
         mVotData.logoutYandex();
         MessageHelpers.showMessage(getContext(), R.string.vot_yandex_logout_done);
         AppDialogPresenter.instance(getContext()).closeDialog();
+    }
+
+    private void toggleDebugAuthMode(AppDialogPresenter settingsPresenter) {
+        VotAuthMode current = mVotData.getAuthMode();
+        VotAuthMode next;
+        if (current == VotAuthMode.AUTO) {
+            next = VotAuthMode.ANONYMOUS;
+        } else if (current == VotAuthMode.ANONYMOUS) {
+            next = VotAuthMode.YANDEX_ID;
+        } else {
+            next = VotAuthMode.AUTO;
+        }
+        mVotData.setAuthMode(next);
+        MessageHelpers.showMessage(getContext(), "VOT Auth Mode: " + next.name());
+        settingsPresenter.closeDialog();
+        appendVotCategory(settingsPresenter);
     }
 
     private void showVotTokenDialog() {

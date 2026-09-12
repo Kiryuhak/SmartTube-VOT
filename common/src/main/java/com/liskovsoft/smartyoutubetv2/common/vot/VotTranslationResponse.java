@@ -14,6 +14,7 @@ public class VotTranslationResponse {
     public int remainingTimeSec;
     public String translationId;
     public String message;
+    public boolean isLivelyVoice;
 
     public boolean isReady() {
         return status == STATUS_FINISHED || status == STATUS_PART_CONTENT;
