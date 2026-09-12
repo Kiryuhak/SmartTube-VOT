@@ -29,9 +29,18 @@
 
     <!-- VOT Progress Indicator -->
     <string name="vot_progress_preparing">Preparing translation…</string>
+    <string name="vot_progress_starting">Starting translation…</string>
     <string name="vot_progress_waiting_eta">Translation: ~%s</string>
     <string name="vot_progress_still_waiting">Translation is still processing… %s</string>
     <string name="vot_progress_ready">Translation ready</string>
     <string name="vot_progress_error">Failed to prepare translation</string>
     <string name="vot_progress_timeout">Translation was not prepared</string>
+
+    <!-- Replace YouTube Dub with Yandex VOT -->
+    <string name="vot_replace_dub_title">Replace dubbing with Yandex?</string>
+    <string name="vot_replace_dub_desc">A Russian YouTube audio track is currently selected.\nThe original audio track will be used for Yandex voice-over translation.</string>
+    <string name="vot_replace_dub_confirm">Use Yandex</string>
+    <string name="vot_replace_dub_cancel">Cancel</string>
+    <string name="vot_unable_to_switch_original">Unable to switch to the original audio track</string>
+    <string name="vot_unable_to_determine_original">Unable to determine the original audio track</string>
 </resources>

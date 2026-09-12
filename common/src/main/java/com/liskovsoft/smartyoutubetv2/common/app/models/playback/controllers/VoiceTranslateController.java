@@ -1,5 +1,6 @@
 package com.liskovsoft.smartyoutubetv2.common.app.models.playback.controllers;
 
+import com.liskovsoft.sharedutils.helpers.Helpers;
 import com.liskovsoft.sharedutils.helpers.MessageHelpers;
 import com.liskovsoft.sharedutils.mylogger.Log;
 import com.liskovsoft.smartyoutubetv2.common.R;
@@ -40,13 +41,30 @@ public class VoiceTranslateController extends BasePlayerController {
     private static final int STATE_PENDING = 1;
     private static final int STATE_ACTIVE = 2;
 
-    private static final long SYNC_INTERVAL_MS = 1000;
-    private static final long SYNC_THRESHOLD_MS = 800;
-    private static final long AUTO_TRANSLATE_RETRY_MS = 1000;
+    private static final long SYNC_INTERVAL_MS = 1500L;
+    private static final long SYNC_THRESHOLD_MS = 1800L;
+    private static final long SYNC_SEEK_COOLDOWN_MS = 3500L;
+    private static final long INITIAL_SYNC_GRACE_PERIOD_MS = 3000L;
+    private static final long AUTO_TRANSLATE_RETRY_MS = 1000L;
     private static final int AUTO_TRANSLATE_MAX_RETRIES = 20;
     private static final long MAX_TOTAL_WAIT_MS = 25 * 60 * 1000L;
     private static final long PENDING_HEARTBEAT_TIMEOUT_MS = 90 * 1000L;
     private static final long PROGRESS_TICK_INTERVAL_MS = 1000L;
+
+    public enum TrackSwitchState {
+        IDLE,
+        WAITING_CONFIRMATION,
+        SWITCHING_TO_ORIGINAL,
+        STARTING_VOT,
+        VOT_ACTIVE,
+        RESTORING_PREVIOUS_TRACK
+    }
+
+    private TrackSwitchState mTrackSwitchState = TrackSwitchState.IDLE;
+    private FormatItem mPendingOriginalFormat;
+    private FormatItem mRestorableDubFormat;
+    private String mTrackSwitchVideoId;
+    private boolean mUserManuallyChangedTrack;
 
     private VotData mVotData;
     private VotClient mVotClient;
@@ -64,6 +82,17 @@ public class VoiceTranslateController extends BasePlayerController {
     private String mPendingVideoUrl;
     private String mCurrentVideoId;
     private int mAutoTranslateRetryCount;
+    private int mTranslationSessionId;
+    private long mLastSyncSeekTimestamp;
+
+    private final Runnable mTrackSwitchTimeoutRunnable = () -> {
+        if (mTrackSwitchState == TrackSwitchState.SWITCHING_TO_ORIGINAL) {
+            Log.e(TAG, "VOT manual: switch to original track timed out");
+            MessageHelpers.showMessage(getContext(), R.string.vot_unable_to_switch_original);
+            restorePreviousDubTrack();
+            resetTrackSwitch();
+        }
+    };
 
     private long mRequestStartTimestamp;
     private long mExpectedReadyTimestamp;
@@ -168,13 +197,16 @@ public class VoiceTranslateController extends BasePlayerController {
     @Override
     public void onNewVideo(Video item) {
         Log.d(TAG, "VOT reset reason: new video (%s)", item != null ? item.videoId : "null");
+        mTranslationSessionId++;
+        resetTrackSwitch();
         Utils.removeCallbacks(mAutoTranslateRetryRunnable);
         Utils.removeCallbacks(mProgressTickRunnable);
+        Utils.removeCallbacks(mSyncRunnable);
         mAutoTranslateRetryCount = 0;
         cancelTranslationJob();
         releaseTranslationPlayer();
         restoreMainVolume();
-        restoreSavedAudioFormat();
+        mSavedAudioFormat = null;
         if (mProgressOverlay != null) {
             mProgressOverlay.dismissImmediately();
         }
@@ -204,6 +236,28 @@ public class VoiceTranslateController extends BasePlayerController {
     @Override
     public void onTrackChanged(FormatItem track) {
         if (track != null && track.getType() == FormatItem.TYPE_AUDIO) {
+            if (mTrackSwitchState == TrackSwitchState.SWITCHING_TO_ORIGINAL) {
+                String curVideoId = getPlayer() != null && getPlayer().getVideo() != null ? getPlayer().getVideo().videoId : null;
+                if (!Helpers.equals(mTrackSwitchVideoId, curVideoId)) {
+                    resetTrackSwitch();
+                    return;
+                }
+                if (VotAudioTrackHelper.isSameFormat(track, mPendingOriginalFormat)
+                        || VotAudioTrackHelper.isOriginalTrack(VotAudioTrackHelper.from(track))) {
+                    onOriginalTrackActivated(track);
+                    return;
+                }
+            } else if (mTrackSwitchState == TrackSwitchState.VOT_ACTIVE
+                    || mTrackSwitchState == TrackSwitchState.STARTING_VOT) {
+                if (mPendingOriginalFormat != null && !VotAudioTrackHelper.isSameFormat(track, mPendingOriginalFormat)) {
+                    Log.d(TAG, "VOT manual: restore invalidated by user track change");
+                    mUserManuallyChangedTrack = true;
+                    mRestorableDubFormat = null;
+                    mSavedAudioFormat = null;
+                }
+            } else if (mTrackSwitchState == TrackSwitchState.RESTORING_PREVIOUS_TRACK) {
+                mTrackSwitchState = TrackSwitchState.IDLE;
+            }
             tryApplyAutoTranslate(true);
         }
     }
@@ -212,7 +266,7 @@ public class VoiceTranslateController extends BasePlayerController {
     public void onPlay() {
         if (mState == STATE_ACTIVE && mTranslationPlayer != null) {
             mTranslationPlayer.resume();
-            syncTranslationPositionIfNeeded();
+            duckMainAudio();
         }
     }
 
@@ -226,7 +280,9 @@ public class VoiceTranslateController extends BasePlayerController {
     @Override
     public void onSeekEnd() {
         if (mState == STATE_ACTIVE && mTranslationPlayer != null && mTranslationPlayer.isReady()) {
-            mTranslationPlayer.seekTo(getPlayer().getPositionMs());
+            long targetPos = getPlayer().getPositionMs();
+            mLastSyncSeekTimestamp = System.currentTimeMillis();
+            mTranslationPlayer.seekTo(targetPos);
         }
     }
 
@@ -240,6 +296,10 @@ public class VoiceTranslateController extends BasePlayerController {
     @Override
     public void onEngineReleased() {
         Log.d(TAG, "VOT reset reason: engine released");
+        mTranslationSessionId++;
+        Utils.removeCallbacks(mSyncRunnable);
+        resetTrackSwitch();
+        mSavedAudioFormat = null;
         if (mProgressOverlay != null) {
             mProgressOverlay.destroy();
             mProgressOverlay = null;
@@ -250,6 +310,10 @@ public class VoiceTranslateController extends BasePlayerController {
     @Override
     public void onViewDestroyed() {
         Log.d(TAG, "VOT reset reason: view destroyed");
+        mTranslationSessionId++;
+        Utils.removeCallbacks(mSyncRunnable);
+        resetTrackSwitch();
+        mSavedAudioFormat = null;
         if (mProgressOverlay != null) {
             mProgressOverlay.destroy();
             mProgressOverlay = null;
@@ -284,10 +348,24 @@ public class VoiceTranslateController extends BasePlayerController {
             return;
         }
         TrackInfo info = resolveAudioInfo();
-        if (VotAudioTrackHelper.isRussianOriginal(info)
-                || (info != null && VotAudioTrackHelper.isRussianLang(info.langCode))) {
-            MessageHelpers.showMessage(getContext(), R.string.vot_skip_russian);
-            return;
+        Log.d(TAG, "VOT manual: selected audio=%s", info != null ? info.rawLabel : "null");
+        if (info != null && VotAudioTrackHelper.isRussianLang(info.langCode)) {
+            List<FormatItem> formats = getAudioFormats();
+            if (VotAudioTrackHelper.isRussianDubbedTrack(info, formats)) {
+                FormatItem original = VotAudioTrackHelper.findBestOriginalForYandex(formats);
+                if (original == null) {
+                    MessageHelpers.showMessage(getContext(), R.string.vot_unable_to_determine_original);
+                    return;
+                }
+                TrackInfo origInfo = VotAudioTrackHelper.from(original);
+                Log.d(TAG, "VOT manual: original audio=%s", origInfo != null ? origInfo.rawLabel : "null");
+                Log.d(TAG, "VOT manual: russian dubbed track detected");
+                showReplaceDubDialog(info.format != null ? info.format : (getPlayer() != null ? getPlayer().getAudioFormat() : null), original);
+                return;
+            } else {
+                MessageHelpers.showMessage(getContext(), R.string.vot_skip_russian);
+                return;
+            }
         }
         mUserArmed = true;
         mArmed = true;
@@ -295,6 +373,74 @@ public class VoiceTranslateController extends BasePlayerController {
             progressOverlay().showPreparing(getActivity());
         }
         startYandexTranslation();
+    }
+
+    private void showReplaceDubDialog(FormatItem currentDub, FormatItem original) {
+        mTrackSwitchState = TrackSwitchState.WAITING_CONFIRMATION;
+        String videoId = getPlayer() != null && getPlayer().getVideo() != null ? getPlayer().getVideo().videoId : null;
+        AppDialogUtil.showVotReplaceDubDialog(
+                getContext(),
+                () -> {
+                    if (getPlayer() == null || getPlayer().getVideo() == null || !Helpers.equals(videoId, getPlayer().getVideo().videoId)) {
+                        resetTrackSwitch();
+                        return;
+                    }
+                    mRestorableDubFormat = currentDub;
+                    mPendingOriginalFormat = original;
+                    mTrackSwitchVideoId = videoId;
+                    mUserManuallyChangedTrack = false;
+                    mTrackSwitchState = TrackSwitchState.SWITCHING_TO_ORIGINAL;
+                    Log.d(TAG, "VOT manual: switching to original track");
+                    saveCurrentAudioFormatBeforeSwitch(original);
+                    getPlayer().setFormat(original);
+                    FormatItem active = getPlayer().getAudioFormat();
+                    if (VotAudioTrackHelper.isSameFormat(active, original)) {
+                        onOriginalTrackActivated(original);
+                    } else {
+                        Utils.removeCallbacks(mTrackSwitchTimeoutRunnable);
+                        Utils.postDelayed(mTrackSwitchTimeoutRunnable, 5000L);
+                    }
+                },
+                () -> {
+                    Log.d(TAG, "VOT manual: replace dubbing cancelled by user");
+                    resetTrackSwitch();
+                }
+        );
+    }
+
+    private void onOriginalTrackActivated(FormatItem track) {
+        Utils.removeCallbacks(mTrackSwitchTimeoutRunnable);
+        Log.d(TAG, "VOT manual: original track active");
+        mPendingOriginalFormat = track;
+        mTrackSwitchState = TrackSwitchState.STARTING_VOT;
+        VotAudioTrackHelper.TrackInfo info = VotAudioTrackHelper.from(track);
+        Log.d(TAG, "VOT manual: starting Yandex VOT from=%s", info != null && info.langCode != null ? info.langCode : "unknown");
+        mUserArmed = true;
+        mArmed = true;
+        if (progressOverlay() != null) {
+            progressOverlay().showPreparing(getActivity());
+        }
+        startYandexTranslation();
+    }
+
+    private void restorePreviousDubTrack() {
+        if (!mUserManuallyChangedTrack && mRestorableDubFormat != null && getPlayer() != null) {
+            Log.d(TAG, "VOT manual: restoring previous audio track");
+            mTrackSwitchState = TrackSwitchState.RESTORING_PREVIOUS_TRACK;
+            getPlayer().setFormat(mRestorableDubFormat);
+        }
+        mRestorableDubFormat = null;
+        mPendingOriginalFormat = null;
+        mSavedAudioFormat = null;
+    }
+
+    private void resetTrackSwitch() {
+        Utils.removeCallbacks(mTrackSwitchTimeoutRunnable);
+        mTrackSwitchState = TrackSwitchState.IDLE;
+        mPendingOriginalFormat = null;
+        mRestorableDubFormat = null;
+        mTrackSwitchVideoId = null;
+        mUserManuallyChangedTrack = false;
     }
 
     private void tryApplyAutoTranslate(boolean fromTrackChange) {
@@ -469,10 +615,21 @@ public class VoiceTranslateController extends BasePlayerController {
     }
 
     private void restoreSavedAudioFormat() {
+        if (!mUserManuallyChangedTrack && mRestorableDubFormat != null && getPlayer() != null) {
+            Log.d(TAG, "VOT manual: restoring previous audio track");
+            mTrackSwitchState = TrackSwitchState.RESTORING_PREVIOUS_TRACK;
+            getPlayer().setFormat(mRestorableDubFormat);
+            mRestorableDubFormat = null;
+            mPendingOriginalFormat = null;
+            mSavedAudioFormat = null;
+            return;
+        }
         if (mSavedAudioFormat != null && getPlayer() != null) {
             getPlayer().setFormat(mSavedAudioFormat);
             mSavedAudioFormat = null;
         }
+        mRestorableDubFormat = null;
+        mPendingOriginalFormat = null;
     }
 
     private TrackInfo resolveAudioInfo() {
@@ -513,13 +670,10 @@ public class VoiceTranslateController extends BasePlayerController {
                 mProgressTickRunnable.run();
                 break;
             case VotProgress.TYPE_READY:
-                Log.d(TAG, "VOT translation ready");
+                Log.d(TAG, "VOT translation ready (audioUrl=%s)", progress.audioUrl);
                 Utils.removeCallbacks(mProgressTickRunnable);
-                if (mUserArmed && progressOverlay() != null) {
-                    progressOverlay().showReady(getActivity());
-                }
                 if (progress.audioUrl != null) {
-                    playTranslation(progress.audioUrl);
+                    prepareAndStartTranslationAudio(progress.audioUrl);
                 }
                 break;
             case VotProgress.TYPE_FAILED:
@@ -544,40 +698,121 @@ public class VoiceTranslateController extends BasePlayerController {
         handleTranslationError(msg, isNetwork);
     }
 
-    private void playTranslation(String audioUrl) {
-        if (getPlayer() == null) {
+    private void prepareAndStartTranslationAudio(String audioUrl) {
+        if (getPlayer() == null || getPlayer().getVideo() == null) {
             return;
         }
+        final int sessionId = ++mTranslationSessionId;
+        final String videoId = getPlayer().getVideo().videoId;
+
+        if (mUserArmed && progressOverlay() != null) {
+            progressOverlay().showStarting(getActivity());
+        }
+
         releaseTranslationPlayer();
         mTranslationPlayer = new TranslationAudioPlayer(getContext());
-        mTranslationPlayer.setOnReadyListener(() -> {
-            if (getPlayer() != null && mTranslationPlayer != null) {
-                mTranslationPlayer.seekTo(getPlayer().getPositionMs());
+
+        float speed = getPlayer().getSpeed();
+        mTranslationPlayer.prepare(sessionId, audioUrl, speed > 0 ? speed : 1f, new TranslationAudioPlayer.PlaybackCallback() {
+            @Override
+            public void onPrepared() {
+                if (sessionId != mTranslationSessionId || getPlayer() == null || getPlayer().getVideo() == null
+                        || !Helpers.equals(videoId, getPlayer().getVideo().videoId)) {
+                    Log.w(TAG, "VOT_AUDIO session=%d prepared but session/video changed, ignoring", sessionId);
+                    return;
+                }
+
+                long targetPositionMs = getPlayer().getPositionMs();
+                Log.d(TAG, "VOT_AUDIO session=%d target_position=%d", sessionId, targetPositionMs);
+
+                if (targetPositionMs <= 200) {
+                    onInitialSyncComplete(sessionId, videoId);
+                } else {
+                    mTranslationPlayer.seekTo(targetPositionMs);
+                }
+            }
+
+            @Override
+            public void onSeekProcessed() {
+                if (sessionId != mTranslationSessionId || getPlayer() == null || getPlayer().getVideo() == null
+                        || !Helpers.equals(videoId, getPlayer().getVideo().videoId)) {
+                    Log.w(TAG, "VOT_AUDIO session=%d seek processed but session/video changed, ignoring", sessionId);
+                    return;
+                }
+
+                if (!mTranslationPlayer.isPlaying()) {
+                    onInitialSyncComplete(sessionId, videoId);
+                }
+            }
+
+            @Override
+            public void onError(Exception error) {
+                if (sessionId == mTranslationSessionId) {
+                    Utils.post(() -> onTranslationPlaybackError(error));
+                }
             }
         });
-        mTranslationPlayer.setOnErrorListener(e -> {
-            Utils.post(() -> onTranslationPlaybackError(e));
-        });
-        float speed = getPlayer().getSpeed();
-        mTranslationPlayer.play(
-                audioUrl,
-                getPlayer().getPositionMs(),
-                votData().getTranslationVolumeMultiplier(),
-                speed > 0 ? speed : 1f
-        );
+    }
+
+    private void onInitialSyncComplete(int sessionId, String videoId) {
+        if (sessionId != mTranslationSessionId || getPlayer() == null || getPlayer().getVideo() == null
+                || !Helpers.equals(videoId, getPlayer().getVideo().videoId) || mTranslationPlayer == null) {
+            return;
+        }
+
+        if (mTranslationPlayer.isPlaying()) {
+            Log.d(TAG, "VOT_AUDIO session=%d duplicate_play_ignored", sessionId);
+            return;
+        }
+
         duckMainAudio();
+
+        float volume = votData().getTranslationVolumeMultiplier();
+        boolean mainPlaying = getPlayer().isPlaying();
+
+        mTranslationPlayer.startPlayback(volume);
+
+        if (!mainPlaying) {
+            mTranslationPlayer.pause();
+            Log.d(TAG, "VOT_AUDIO session=%d main player paused, waiting for resume", sessionId);
+        }
+
         setState(STATE_ACTIVE);
+        if (mTrackSwitchState == TrackSwitchState.STARTING_VOT) {
+            mTrackSwitchState = TrackSwitchState.VOT_ACTIVE;
+        }
+
+        if (mUserArmed && progressOverlay() != null) {
+            progressOverlay().showReady(getActivity());
+        }
+
+        mLastSyncSeekTimestamp = System.currentTimeMillis();
         Utils.removeCallbacks(mSyncRunnable);
-        Utils.postDelayed(mSyncRunnable, SYNC_INTERVAL_MS);
+        Utils.postDelayed(mSyncRunnable, INITIAL_SYNC_GRACE_PERIOD_MS);
     }
 
     private void syncTranslationPositionIfNeeded() {
-        if (mTranslationPlayer == null || getPlayer() == null || !mTranslationPlayer.isReady()) {
+        if (mTranslationPlayer == null || getPlayer() == null || !mTranslationPlayer.isReady()
+                || !mTranslationPlayer.isPlaying() || !getPlayer().isPlaying()) {
             return;
         }
+
+        long now = System.currentTimeMillis();
+        if (now - mLastSyncSeekTimestamp < SYNC_SEEK_COOLDOWN_MS) {
+            return;
+        }
+
         long mainPos = getPlayer().getPositionMs();
         long transPos = mTranslationPlayer.getPositionMs();
-        if (Math.abs(mainPos - transPos) > SYNC_THRESHOLD_MS) {
+        long delta = Math.abs(mainPos - transPos);
+
+        Log.d(TAG, "VOT_AUDIO session=%d sync video_pos=%d trans_pos=%d delta=%d state=%s",
+                mTranslationSessionId, mainPos, transPos, delta, stateToString(mState));
+
+        if (delta > SYNC_THRESHOLD_MS) {
+            Log.d(TAG, "VOT_AUDIO session=%d drift correction seek to %d (delta=%d)",
+                    mTranslationSessionId, mainPos, delta);
+            mLastSyncSeekTimestamp = now;
             mTranslationPlayer.seekTo(mainPos);
         }
     }
@@ -630,11 +865,13 @@ public class VoiceTranslateController extends BasePlayerController {
 
     private void disarmQuiet() {
         Log.d(TAG, "VOT reset reason: disarmQuiet");
+        mTranslationSessionId++;
         mUserArmed = false;
         mArmed = false;
         Utils.removeCallbacks(mAutoTranslateRetryRunnable);
         Utils.removeCallbacks(mProgressTickRunnable);
         Utils.removeCallbacks(mResetErrorButtonRunnable);
+        Utils.removeCallbacks(mSyncRunnable);
         cancelTranslationJob();
         releaseTranslationPlayer();
         restoreMainVolume();

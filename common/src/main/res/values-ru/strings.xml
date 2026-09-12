@@ -355,6 +355,12 @@
     <string name="vot_prefer_youtube_dub_desc">Если есть, переключать на русскую дорожку YouTube вместо закадрового перевода Яндекса.</string>
     <string name="vot_using_youtube_dub">Включена русская дорожка YouTube</string>
     <string name="vot_disable_google_for_yandex">Сначала выключите «Дорожка YouTube» в меню закадрового перевода</string>
+    <string name="vot_replace_dub_title">Заменить озвучку на Яндекс?</string>
+    <string name="vot_replace_dub_desc">Сейчас используется русская озвучка YouTube.\nДля перевода Яндекса будет включена оригинальная аудиодорожка видео.</string>
+    <string name="vot_replace_dub_confirm">Использовать Яндекс</string>
+    <string name="vot_replace_dub_cancel">Отмена</string>
+    <string name="vot_unable_to_switch_original">Не удалось переключиться на оригинальную аудиодорожку</string>
+    <string name="vot_unable_to_determine_original">Не удалось определить оригинальную аудиодорожку</string>
     <string name="action_playback_queue">Очередь воспроизведения</string>
     <string name="action_video_speed">Скорость видео</string>
     <string name="action_subtitles">Субтитры</string>

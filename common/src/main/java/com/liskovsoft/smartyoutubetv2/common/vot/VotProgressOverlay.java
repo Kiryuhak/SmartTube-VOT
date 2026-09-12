@@ -64,6 +64,15 @@ public class VotProgressOverlay {
         fadeIn();
     }
 
+    public void showStarting(@Nullable Activity activity) {
+        if (!ensureAttached(activity)) return;
+        Utils.removeCallbacks(mAutoDismissRunnable);
+        mCurrentState = STATE_PREPARING;
+        showSpinnerMode();
+        setText(mContext.getString(R.string.vot_progress_starting));
+        fadeIn();
+    }
+
     public void showWaitingWithEta(@Nullable Activity activity, String timeRemainingFormatted) {
         if (!ensureAttached(activity)) return;
         Utils.removeCallbacks(mAutoDismissRunnable);

@@ -78,6 +78,9 @@ android {
         }
 
         debug {
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 

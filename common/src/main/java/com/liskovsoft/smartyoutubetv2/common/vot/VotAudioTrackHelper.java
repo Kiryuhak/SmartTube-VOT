@@ -428,6 +428,44 @@ public final class VotAudioTrackHelper {
         return a.getId() == b.getId();
     }
 
+    /**
+     * Checks if current selected audio is a Russian dubbed track (YouTube dub)
+     * for an originally non-Russian video.
+     *
+     * Strict rules:
+     * - selected track language must be Russian.
+     * - MUST NOT be native Russian (i.e. not an original Russian track).
+     * - An explicit original non-Russian track must exist, OR the track is explicitly tagged as dubbed/dubbed-auto and non-Russian tracks exist.
+     */
+    public static boolean isRussianDubbedTrack(@Nullable TrackInfo current,
+                                               @Nullable List<FormatItem> formats) {
+        if (current == null || !isRussianLang(current.langCode)) {
+            return false;
+        }
+        if (formats == null || formats.isEmpty()) {
+            return false;
+        }
+
+        // If the current track is explicitly marked as the original track and not dubbed, it's native Russian!
+        if ("original".equals(current.acont) || "descriptive".equals(current.acont)) {
+            return false;
+        }
+
+        // Check if there is a verified non-Russian original track available
+        FormatItem originalNonRu = findBestOriginalForYandex(formats);
+        if (originalNonRu != null) {
+            TrackInfo origInfo = from(originalNonRu);
+            if (origInfo.langCode != null && !isRussianLang(origInfo.langCode) && isOriginalTrack(origInfo)) {
+                return true;
+            }
+            if (isDubbed(current) && origInfo.langCode != null && !isRussianLang(origInfo.langCode)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     @Nullable
     private static String extractLangCode(@Nullable String langPart) {
         if (langPart == null || langPart.isEmpty()) {
