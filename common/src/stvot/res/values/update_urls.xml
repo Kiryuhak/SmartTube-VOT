@@ -2,7 +2,5 @@
 <resources>
     <string-array name="update_urls">
         <item>https://github.com/Kiryuhak/SmartTube-Vox/releases/latest/download/smarttube_vox.json</item>
-        <item>https://github.com/Kiryuhak/SmartTube-Vox/releases/latest/download/smarttube_vot.json</item>
-        <item>https://github.com/Kiryuhak/SmartTube-VOT/releases/latest/download/smarttube_vot.json</item>
     </string-array>
 </resources>

@@ -277,11 +277,10 @@ jobs:
           fi
           echo "Цифровая подпись успешно верифицирована."
 
-          # Подготовка основных и совместимых ассетов для release и updater
+          # Подготовка основных ассетов для release и updater (только SmartTube VOX)
           cp "$UNIVERSAL_APK" smarttube_vox.apk
           cp "$UNIVERSAL_APK" smarttube_vox-universal.apk
-          cp "$UNIVERSAL_APK" smarttube_vot.apk
-          echo "Созданы основные и совместимые ассеты для updater: smarttube_vox.apk, smarttube_vot.apk, smarttube_vox-universal.apk"
+          echo "Созданы основные ассеты для release: smarttube_vox.apk, smarttube_vox-universal.apk"
 
           ARM64_APK=$(find "$OUTPUT_DIR" -name "*arm64-v8a*.apk" | head -n 1)
           if [ -n "$ARM64_APK" ] && [ -f "$ARM64_APK" ]; then
@@ -353,7 +352,7 @@ jobs:
               if line.strip().startswith(('-', '*'))
           ]
 
-          # 1. Основной манифест обновления SmartTube VOX
+          # Основной манифест обновления SmartTube VOX
           json_vox = {
               'package': {
                   'downloadUrl': f'https://github.com/{sys.argv[1]}/releases/latest/download/smarttube_vox.apk'
@@ -373,43 +372,16 @@ jobs:
           with open('smarttube_vox.json', 'w', encoding='utf-8') as f:
               json.dump(json_vox, f, ensure_ascii=False, indent=2)
 
-          # 2. Манифест обратной совместимости для ранее установленных версий SmartTube VOT (Echo)
-          json_vot = {
-              'package': {
-                  'downloadUrl': f'https://github.com/{sys.argv[1]}/releases/latest/download/smarttube_vot.apk'
-              },
-              version: {
-                  'versionCode': int(sys.argv[2]),
-                  'changelog': [
-                      'Voice-over translation via Yandex VOT for Android TV',
-                      'Yandex OAuth and Lively Voice support',
-                      'Dedicated stvot flavor with isolated package ID',
-                      'Adaptive TV launcher icon and banner',
-                      'In-app updater support'
-                  ],
-                  'changelog_ru': ru_items
-              }
-          }
-          with open('smarttube_vot.json', 'w', encoding='utf-8') as f:
-              json.dump(json_vot, f, ensure_ascii=False, indent=2)
-
-          print('smarttube_vox.json и smarttube_vot.json успешно сформированы и валидированы.')
+          print('smarttube_vox.json успешно сформирован и валидирован.')
           " "$REPO" "$EXPECTED_CODE"
 
-          # Дополнительная валидация сформированных JSON
+          # Валидация сформированного JSON
           jq . smarttube_vox.json
-          jq . smarttube_vot.json
 
           # Проверка корректности downloadUrl
           DL_VOX=$(jq -r '.package.downloadUrl' smarttube_vox.json)
           if [[ ! "$DL_VOX" =~ /smarttube_vox\.apk$ ]]; then
             echo "::error::downloadUrl в smarttube_vox.json ($DL_VOX) не указывает на smarttube_vox.apk!"
-            exit 1
-          fi
-
-          DL_VOT=$(jq -r '.package.downloadUrl' smarttube_vot.json)
-          if [[ ! "$DL_VOT" =~ /smarttube_vot\.apk$ ]]; then
-            echo "::error::downloadUrl в smarttube_vot.json ($DL_VOT) не указывает на smarttube_vot.apk!"
             exit 1
           fi
 
@@ -424,13 +396,10 @@ jobs:
             --title "${RELEASE_TITLE:-SmartTube VOX v$VERSION_NAME}" \
             --notes-file release_notes.md \
             smarttube_vox.apk \
-            smarttube_vot.apk \
             smarttube_vox-*.apk \
-            smarttubetv/build/outputs/apk/stvot/release/SmartTube_vot_${VERSION_NAME}_*.apk \
-            smarttube_vox.json \
-            smarttube_vot.json
+            smarttube_vox.json
 
-          echo "Релиз успешно опубликован со всеми ассетами и метаданными обновления."
+          echo "Релиз успешно опубликован со всеми VOX ассетами и метаданными обновления."
 
       - name: Clean up runner secrets
         if: always()

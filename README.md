@@ -22,9 +22,11 @@
 >
 > 📦 **[Скачать smarttube_vox.apk (Universal APK)](https://github.com/Kiryuhak/SmartTube-Vox/releases/latest/download/smarttube_vox.apk)**
 >
-> 🔄 *Совместимый alias для существующих установок и скриптов:* **[smarttube_vot.apk](https://github.com/Kiryuhak/SmartTube-Vox/releases/latest/download/smarttube_vot.apk)**
->
-> Все актуальные сборки и архивы версий доступны в разделе **[GitHub Releases](https://github.com/Kiryuhak/SmartTube-Vox/releases/latest)**.
+> Все актуальные сборки и архитектурные варианты (arm64-v8a, armeabi-v7a, x86) доступны в разделе **[GitHub Releases](https://github.com/Kiryuhak/SmartTube-Vox/releases/latest)**.
+
+> [!TIP]
+> **Обновление с предыдущих версий SmartTube VOT:**
+> Старые установки SmartTube VOT, которые больше не получают автоматические обновления по воздуху, можно обновить вручную, установив актуальный APK SmartTube VOX поверх существующей версии. Благодаря сохранённому package ID (`io.github.kiryuhak.smarttubevot.stable`) и неизменному ключу цифровой подписи все пользовательские настройки, аккаунты и история сохраняются.
 
 Рекомендуется скачивать SmartTube VOX **только из официальных Releases этого репозитория**. Не используйте сторонние непроверенные сайты и каталоги APK во избежание подмены установочных файлов.
 
@@ -126,19 +128,19 @@ SmartTube VOX рассчитан прежде всего на телевизор
 
 ## 🔄 Обновления
 
-Обновление SmartTube VOX работает по прямой и обратно-совместимой схеме:
+Обновление SmartTube VOX работает напрямую через официальные GitHub Releases:
 
 ```text
 SmartTube VOX
      ↓
-smarttube_vox.json / smarttube_vot.json  (манифесты обновления)
+smarttube_vox.json  (манифест обновления)
      ↓
 GitHub Release
      ↓
-smarttube_vox.apk / smarttube_vot.apk   (готовые бинарники)
+smarttube_vox.apk   (актуальный бинарник)
 ```
 
-Каждый GitHub Release содержит новые APK-файлы (`smarttube_vox.apk`) и метаданные (`smarttube_vox.json`), а также compatibility aliases (`smarttube_vot.apk`, `smarttube_vot.json`) одновременно. Благодаря этому как новые установки SmartTube VOX, так и ранее установленные версии Echo продолжают бесшовно получать обновления.
+Каждый GitHub Release содержит новые APK-файлы (`smarttube_vox.apk`) и метаданные (`smarttube_vox.json`). Начиная с версии 32.45-vot.8, публикация устаревших compatibility-ассетов SmartTube VOT прекращена. Для пользователей старых сборок SmartTube VOT рекомендуется однократная ручная установка APK SmartTube VOX поверх имеющейся версии.
 
 ### Формат версий
 В проекте используется двухуровневая схема версий:

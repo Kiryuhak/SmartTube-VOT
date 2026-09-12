@@ -4,6 +4,12 @@
 SmartTube VOX — новое название проекта SmartTube VOT.
 Формат основан на [Keep a Changelog](https://keepachangelog.com/ru/1.0.0/).
 
+## [Unreleased]
+
+### Изменено
+- Публичные релизы переведены на единое имя SmartTube VOX (прекращена публикация устаревших compatibility-ассетов SmartTube VOT).
+- Механизм обновлений OTA переведён исключительно на манифест `smarttube_vox.json`.
+
 ## [32.45-vot.8] — Pulse Update
 
 ### Добавлено
